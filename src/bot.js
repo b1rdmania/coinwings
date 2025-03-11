@@ -272,15 +272,37 @@ bot.on('text', async (ctx) => {
         const conversationData = conversation.getDataForScoring();
         const leadScore = calculateLeadScore(conversationData);
         
-        // If lead score is high enough, suggest agent handoff
-        if (shouldEscalateToAgent(leadScore) && !conversation.handoffSuggested) {
-            conversation.handoffSuggested = true;
+        // If lead score is high enough, suggest agent handoff, but only after lead-in questions
+        if (shouldEscalateToAgent(leadScore) && !conversation.handoffSuggested && conversation.messages.length >= 6) {
+            // Check message content for evidence of lead-in questions being asked
+            const lastFiveMessages = conversation.messages.slice(-5);
+            const botMessages = lastFiveMessages.filter(m => m.role === 'assistant' || m.role === 'bot');
             
-            await ctx.reply(
-                `Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability.\n\n` +
-                `Would you like to speak with a specialist? If so, please use the /agent command.`
-            );
-            return;
+            // Look for lead-in questions in bot messages
+            let hasAskedLeadInQuestions = false;
+            for (const message of botMessages) {
+                const text = message.text.toLowerCase();
+                if (
+                    (text.includes('flown') && text.includes('before')) ||
+                    (text.includes('payment') && (text.includes('system') || text.includes('crypto'))) ||
+                    (text.includes('how') && text.includes('jet') && text.includes('travel')) ||
+                    (text.includes('important') && text.includes('experience'))
+                ) {
+                    hasAskedLeadInQuestions = true;
+                    break;
+                }
+            }
+            
+            // Only suggest handoff if lead-in questions have been asked
+            if (hasAskedLeadInQuestions) {
+                conversation.handoffSuggested = true;
+                
+                await ctx.reply(
+                    `Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability.\n\n` +
+                    `Would you like to speak with a specialist? If so, please use the /agent command.`
+                );
+                return;
+            }
         }
         
         try {
@@ -297,7 +319,13 @@ bot.on('text', async (ctx) => {
                         - Approximate pricing
                         - Next steps
                         
-                        If the user shows serious interest, suggest connecting them with our aviation team using the /agent command.
+                        IMPORTANT: Build rapport with the client before suggesting they speak with an agent. Ask lead-in questions such as:
+                        - Have they flown on a private jet before?
+                        - Would they like to know about our payment system (including crypto options)?
+                        - Would they like to understand how private jet travel typically works?
+                        - What's most important to them in their travel experience?
+                        
+                        Only suggest connecting with our aviation team using the /agent command after you've gathered substantial information and asked at least 2-3 lead-in questions.
                         
                         Current conversation context:
                         ${conversation.getSummary() || "No specific details yet."}`

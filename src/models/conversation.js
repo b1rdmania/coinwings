@@ -24,6 +24,13 @@ class Conversation {
     this.urgencySignals = false;
     this.lastActivity = Date.now();
     this.handoffRequested = false;
+    this.handoffSuggested = false;
+    
+    // New properties for lead-in questions
+    this.askedPreviousExperience = false;
+    this.explainedPaymentSystem = false;
+    this.explainedJetTravel = false;
+    this.leadInQuestionsAsked = 0;
   }
 
   /**
