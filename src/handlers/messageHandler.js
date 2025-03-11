@@ -39,6 +39,11 @@ function registerMessageHandler(bot) {
         conversation.handoffRequested = true;
       }
       
+      // Check if this is a summary request
+      const isSummaryRequest = messageText.toLowerCase().includes('summary') || 
+                              messageText.toLowerCase().includes('recap') ||
+                              messageText.toLowerCase().includes('what did i tell you');
+      
       // Generate response using OpenAI
       const response = await openaiService.generateResponse(
         conversation.getMessagesForAI(),
@@ -63,17 +68,19 @@ function registerMessageHandler(bot) {
         // Mark notification as sent
         conversation.notificationSent = true;
         
-        // Send confirmation message
-        const confirmationMessage = `Thanks for your interest in CoinWings! ✨
+        // Send confirmation message if not already sent in the OpenAI response
+        if (!response.toLowerCase().includes('specialist') && !response.toLowerCase().includes('connect you')) {
+          const confirmationMessage = `Thanks for your interest in CoinWings! ✨
 
 I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.
 
 Feel free to ask any other questions while you wait.`;
-        
-        await ctx.reply(confirmationMessage, { parse_mode: 'Markdown' });
-        
-        // Add confirmation to conversation
-        conversation.addMessage(confirmationMessage, 'assistant');
+          
+          await ctx.reply(confirmationMessage, { parse_mode: 'Markdown' });
+          
+          // Add confirmation to conversation
+          conversation.addMessage(confirmationMessage, 'assistant');
+        }
       }
       
       // Check if score exceeds threshold for auto-escalation

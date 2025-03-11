@@ -107,6 +107,14 @@ Always emphasize that these are estimates and final pricing depends on specific 
 - Never pressure the user into a handoff - it should feel natural and helpful
 - If the user agrees to connect with a specialist, thank them and let them know someone will be in touch soon`;
 
+      // Add summary guidance
+      systemPrompt += `\n\nSUMMARY GUIDANCE:
+- If the user asks for a summary of their request or inquiry, provide a concise summary of what they've told you so far
+- Include details like origin, destination, date, number of passengers, and any preferences they've mentioned
+- Make the summary conversational and natural, not just a list of facts
+- After providing the summary, ask if they'd like to add or change anything
+- Never respond with "I'm processing your request" - always provide a helpful, natural response`;
+
       // Add summary generation guidance
       systemPrompt += `\n\nSUMMARY GENERATION:
 When a user requests to connect with an agent, you'll need to generate a structured summary of their inquiry.
@@ -255,10 +263,18 @@ For the fun_summary field, be creative and personable - this helps our agents co
             console.error('Error parsing function call arguments:', parseError);
             // Continue with the response even if parsing fails
           }
+          
+          // Generate a natural response instead of "I'm processing your request"
+          const naturalResponse = `Great! I'll connect you with a specialist who can provide an exact quote for your trip from ${conversation.origin || 'your origin'} to ${conversation.destination || 'your destination'}.
+
+They'll be in touch shortly to discuss the details and answer any questions you might have. Is there anything specific you'd like them to know about your preferences or requirements?`;
+          
+          console.log('OpenAI response received (function call)');
+          return naturalResponse;
         }
         
         console.log('OpenAI response received');
-        return responseMessage.content || "I'm processing your request. How else can I help you today?";
+        return responseMessage.content || "I'm sorry, I couldn't generate a response. How else can I help you today?";
       } catch (error) {
         retries++;
         console.error(`OpenAI API error (attempt ${retries}/${maxRetries + 1}):`, error);
