@@ -212,9 +212,12 @@ bot.command('faq', async (ctx) => {
  */
 async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     try {
+        console.log('Starting agent notification process...');
+        
         // Calculate lead score
         const conversationData = conversation.getDataForScoring();
         const leadScore = calculateLeadScore(conversationData);
+        console.log('Lead score calculated:', leadScore);
         
         // Store lead in Firebase
         const leadData = {
@@ -232,10 +235,15 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
             triggerType: triggerType
         };
         
+        console.log('Lead data prepared:', JSON.stringify(leadData));
+        
         const leadId = await storeLead(leadData);
+        console.log('Lead stored with ID:', leadId);
         
         // Notify agent channel if configured
         if (config.telegram.agentChannel) {
+            console.log('Agent channel configured:', config.telegram.agentChannel);
+            
             try {
                 const priority = getLeadPriority(leadData.score);
                 const priorityEmoji = priority === 'high' ? '🔴' : priority === 'medium' ? '🟡' : '🟢';
@@ -259,11 +267,22 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
                     `**Recent Conversation:**\n${recentMessages}\n\n` +
                     `**Action Required:** Agent should contact @${ctx.from.username} directly.`;
                 
-                await bot.telegram.sendMessage(config.telegram.agentChannel, agentMessage, { parse_mode: 'Markdown' });
+                console.log('Sending message to agent channel...');
+                
+                // Convert channel ID to number if it's a string
+                let channelId = config.telegram.agentChannel;
+                if (typeof channelId === 'string') {
+                    channelId = parseInt(channelId, 10);
+                }
+                
+                console.log('Using channel ID:', channelId);
+                
+                await bot.telegram.sendMessage(channelId, agentMessage, { parse_mode: 'Markdown' });
                 console.log(`Successfully sent notification to agent channel for lead ${leadId}`);
                 return true;
             } catch (channelError) {
-                console.error('Error sending to agent channel:', channelError.message);
+                console.error('Error sending to agent channel:', channelError);
+                console.error('Error details:', channelError.message);
                 console.error('Please ensure the bot is added as an admin to the channel with ID:', config.telegram.agentChannel);
                 return false;
             }
@@ -273,6 +292,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         }
     } catch (error) {
         console.error('Error sending agent notification:', error);
+        console.error('Error stack:', error.stack);
         return false;
     }
 }
@@ -280,25 +300,40 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
 // Agent command
 bot.command('agent', async (ctx) => {
     try {
+        console.log('Agent command triggered by user:', ctx.from.username);
         const conversation = getConversation(ctx.from.id, ctx.from.username);
+        
+        // Get conversation summary
+        const summary = conversation.getSummary();
+        console.log('Conversation summary:', summary);
+        
+        // Always mark as handoff requested to ensure notification is sent
+        conversation.handoffRequested = true;
         
         // Send notification to agent channel
         const success = await sendAgentNotification(ctx, conversation, 'manual');
         
         // Reply to user
         if (success) {
-            const replyMessage = `Thanks for your interest in CoinWings!\n\n` +
-                `One of our aviation specialists will contact you shortly to discuss your requirements in detail.\n\n` +
-                `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
-                `In the meantime, feel free to ask any other questions you might have.`;
+            console.log('Agent notification sent successfully via /agent command');
             
-            await ctx.reply(replyMessage);
-            conversation.addMessage(replyMessage, 'assistant');
+            // Create a confirmation message with the summary
+            const confirmationMessage = `Thanks for your interest in CoinWings!\n\n` +
+                `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+                `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
+                `Here's a summary of the information we've sent to our team:\n\n` +
+                `${summary || 'Your flight inquiry details'}\n\n` +
+                `Feel free to ask any other questions you might have while waiting.`;
+            
+            await ctx.reply(confirmationMessage);
+            conversation.addMessage(confirmationMessage, 'assistant');
         } else {
+            console.error('Failed to send agent notification via /agent command');
             ctx.reply('Sorry, there was an error connecting you with an agent. Please try again later.');
         }
     } catch (error) {
         console.error('Error in agent command:', error);
+        console.error('Error stack:', error.stack);
         ctx.reply('Sorry, there was an error connecting you with an agent. Please try again later.');
     }
 });
@@ -432,41 +467,60 @@ bot.on('text', async (ctx) => {
             }
         }
         
-        // Check for positive response to handoff suggestion
-        if (conversation.handoffSuggested && !conversation.handoffRequested) {
-            const lowerText = ctx.message.text.toLowerCase();
-            if (
-                lowerText === 'yes' || 
-                lowerText === 'yes please' || 
-                lowerText === 'sure' || 
-                lowerText === 'ok' || 
-                lowerText === 'okay' ||
-                lowerText.includes('connect') || 
-                lowerText.includes('speak') || 
-                lowerText.includes('talk to') ||
-                lowerText.includes('yes, connect')
-            ) {
-                // Automatically send to agent
-                const success = await sendAgentNotification(ctx, conversation, 'auto');
+        // Check for positive response to handoff suggestion or direct agent request
+        const messageText = ctx.message.text.toLowerCase();
+        if (
+            (conversation.handoffSuggested && !conversation.handoffRequested) ||
+            messageText === 'yes' || 
+            messageText === 'yes please' || 
+            messageText === 'sure' || 
+            messageText === 'ok' || 
+            messageText === 'okay' ||
+            messageText.includes('connect') || 
+            messageText.includes('speak') || 
+            messageText.includes('talk to') ||
+            messageText.includes('yes, connect') ||
+            messageText.includes('agent') ||
+            messageText.includes('human') ||
+            messageText.includes('specialist') ||
+            messageText.includes('send')
+        ) {
+            console.log('Detected request to connect with agent:', messageText);
+            
+            // Always mark as handoff requested to ensure notification is sent
+            conversation.handoffRequested = true;
+            
+            // Get conversation summary
+            const summary = conversation.getSummary();
+            
+            // Automatically send to agent
+            const success = await sendAgentNotification(ctx, conversation, 'auto');
+            
+            if (success) {
+                console.log('Agent notification sent successfully');
                 
-                if (success) {
-                    await ctx.reply(
-                        `Thanks for your interest in CoinWings!\n\n` +
-                        `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
-                        `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
-                        `In the meantime, feel free to ask any other questions you might have.`
-                    );
-                    conversation.handoffRequested = false; // Reset to prevent multiple notifications
-                    return;
-                }
+                // Create a confirmation message with the summary
+                const confirmationMessage = `Thanks for your interest in CoinWings!\n\n` +
+                    `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+                    `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
+                    `Here's a summary of the information we've sent to our team:\n\n` +
+                    `${summary || 'Your flight inquiry details'}\n\n` +
+                    `Feel free to ask any other questions you might have while waiting.`;
+                
+                await ctx.reply(confirmationMessage);
+                conversation.handoffRequested = false; // Reset to prevent multiple notifications
+            } else {
+                console.log('Failed to send agent notification');
+                await ctx.reply('I\'ll connect you with one of our aviation specialists. Please use the /agent command to submit your inquiry.');
             }
+            return;
         }
         
         // Check for specific keywords that might trigger keyboard options
-        const lowerText = ctx.message.text.toLowerCase();
+        const lowerText = messageText;
         
         // Handle keyboard responses for aircraft types
-        if (['light jet (4-6 pax)', 'mid-size jet (7-9 pax)', 'heavy jet (10-16 pax)'].includes(ctx.message.text.toLowerCase())) {
+        if (['light jet (4-6 pax)', 'mid-size jet (7-9 pax)', 'heavy jet (10-16 pax)'].includes(messageText)) {
             try {
                 const aircraftInfo = await getAircraftInfo();
                 let category = '';
@@ -592,8 +646,10 @@ bot.on('text', async (ctx) => {
                         - Would they like to know about crypto payment options?
                         - What's most important in their travel experience?
                         
-                        Only suggest connecting with our team after gathering substantial information. When appropriate, suggest they can connect with a specialist by replying with "yes".
+                        IMPORTANT: After gathering basic information (route, passengers, timing), ALWAYS suggest connecting with our team for exact pricing and availability. Tell the user they can connect with a specialist by replying with "yes" or typing "agent".
                         
+                        If the user mentions specific routes, dates, or shows clear interest in booking, IMMEDIATELY suggest connecting them with an agent by saying: "Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability. Would you like me to do that now?"
+
                         Current conversation context:
                         ${conversation.getSummary() || "No specific details yet."}`
                     },

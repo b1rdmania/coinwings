@@ -300,17 +300,32 @@ class Conversation {
    */
   checkForHandoffRequest(text) {
     const handoffPatterns = [
-      /(?:speak|talk)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative)/i,
-      /(?:connect|transfer)\s+(?:me|us)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative)/i,
-      /(?:is|are)\s+(?:there|someone)\s+(?:a|an)\s+(?:human|agent|person|representative)/i,
-      /(?:can|could)\s+(?:i|we|you)\s+(?:get|have|connect)\s+(?:a|an|the)\s+(?:human|agent|person|representative)/i,
-      /(?:real|actual)\s+(?:human|agent|person|representative)/i
+      /(?:speak|talk)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team|someone)/i,
+      /(?:connect|transfer)\s+(?:me|us)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team|someone)/i,
+      /(?:is|are)\s+(?:there|someone)\s+(?:a|an)\s+(?:human|agent|person|representative|specialist|team)/i,
+      /(?:can|could)\s+(?:i|we|you)\s+(?:get|have|connect)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team|someone)/i,
+      /(?:real|actual)\s+(?:human|agent|person|representative|specialist|team)/i,
+      /(?:send|forward)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team)/i,
+      /(?:agent|human|specialist|team)/i,
+      /(?:yes|sure|ok|okay|connect|please)/i
     ];
+    
+    // Also check for simple keywords
+    const handoffKeywords = ['agent', 'human', 'person', 'specialist', 'team', 'send', 'connect', 'talk', 'speak'];
     
     for (const pattern of handoffPatterns) {
       if (pattern.test(text)) {
         this.handoffRequested = true;
-        break;
+        return;
+      }
+    }
+    
+    // Check for simple keywords
+    const lowerText = text.toLowerCase();
+    for (const keyword of handoffKeywords) {
+      if (lowerText.includes(keyword)) {
+        this.handoffRequested = true;
+        return;
       }
     }
   }
