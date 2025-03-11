@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const config = require('./config/config');
 const http = require('http');
+const https = require('https');
 
 // Import handlers
 const { registerCommandHandlers } = require('./handlers/commandHandlers');
@@ -66,7 +67,8 @@ function startBot(bot) {
     
     // Keep alive
     setInterval(() => {
-      http.get(`${domain}/ping`);
+      const protocol = domain.startsWith('https://') ? https : http;
+      protocol.get(`${domain}/ping`);
     }, 25 * 60 * 1000); // 25 minutes
     
     // Register shutdown handlers
