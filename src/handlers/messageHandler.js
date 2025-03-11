@@ -63,12 +63,22 @@ function registerMessageHandler(bot) {
          (messageText.toLowerCase() === 'yes' || messageText.toLowerCase() === 'ok' || 
           messageText.toLowerCase() === 'sure' || messageText.toLowerCase() === 'all good'));
       
-      // Add debug logging
-      console.log(`Message: "${messageText}", explicitHandoffRequest: ${explicitHandoffRequest}, notificationSent: ${conversation.notificationSent}`);
+      // Check if the OpenAI response indicates a handoff
+      const responseIndicatesHandoff = 
+        response.toLowerCase().includes('specialist will be in touch') ||
+        response.toLowerCase().includes('will be in touch soon') ||
+        response.toLowerCase().includes('connect you with a specialist') ||
+        response.toLowerCase().includes('one of our charter specialists will be in touch') ||
+        response.toLowerCase().includes('our team will contact you') ||
+        response.toLowerCase().includes('i\'ve noted down your request') ||
+        response.toLowerCase().includes('i\'ve noted your request');
       
-      // Send notification to agent if explicitly requested and not already sent
-      if (explicitHandoffRequest && !conversation.notificationSent) {
-        console.log(`Explicit handoff request detected, sending agent notification for user ${username}`);
+      // Add debug logging
+      console.log(`Message: "${messageText}", explicitHandoffRequest: ${explicitHandoffRequest}, responseIndicatesHandoff: ${responseIndicatesHandoff}, notificationSent: ${conversation.notificationSent}`);
+      
+      // Send notification to agent if explicitly requested or if the response indicates a handoff, and not already sent
+      if ((explicitHandoffRequest || responseIndicatesHandoff) && !conversation.notificationSent) {
+        console.log(`Handoff detected (explicit: ${explicitHandoffRequest}, response: ${responseIndicatesHandoff}), sending agent notification for user ${username}`);
         
         // Send notification to agent
         const notificationResult = await sendAgentNotification(ctx, conversation, 'request');
