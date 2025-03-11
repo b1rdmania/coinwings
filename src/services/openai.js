@@ -21,30 +21,19 @@ async function generateResponse(messages, conversation) {
     
     // Add conversation state if available
     if (conversation) {
-      const providedInfo = conversation.getProvidedInformation();
-      const nextQuestion = conversation.getNextQuestion();
-      
-      // Add information about what we already know
       systemPrompt += `\n\nCurrent conversation state:`;
       
-      if (conversation.origin) {
-        systemPrompt += `\n- Origin: ${conversation.origin}`;
-      }
-      
-      if (conversation.destination) {
-        systemPrompt += `\n- Destination: ${conversation.destination}`;
-      }
-      
-      if (conversation.pax) {
-        systemPrompt += `\n- Passengers: ${conversation.pax}`;
-      }
+      // Add known information
+      if (conversation.origin) systemPrompt += `\n- Origin: ${conversation.origin}`;
+      if (conversation.destination) systemPrompt += `\n- Destination: ${conversation.destination}`;
+      if (conversation.pax) systemPrompt += `\n- Passengers: ${conversation.pax}`;
       
       if (conversation.exactDate) {
         systemPrompt += `\n- Travel date: ${conversation.exactDate}`;
       } else if (conversation.dateRange) {
         systemPrompt += `\n- Travel dates: ${conversation.dateRange.start} to ${conversation.dateRange.end}`;
       } else if (conversation.mentionedTiming) {
-        systemPrompt += `\n- Approximate timing: ${conversation.mentionedTiming}`;
+        systemPrompt += `\n- Approximate timing mentioned`;
       }
       
       if (conversation.aircraftModel) {
@@ -54,26 +43,15 @@ async function generateResponse(messages, conversation) {
       }
       
       // Add guidance on what to ask next
+      const nextQuestion = conversation.getNextQuestion();
       if (nextQuestion) {
         systemPrompt += `\n\nNext question to ask: "${nextQuestion}"`;
       } else if (conversation.origin && conversation.destination && conversation.pax) {
-        // If we have the essential information, suggest connecting with an agent
-        systemPrompt += `\n\nEssential information has been collected. Consider suggesting connecting with a specialist for an exact quote, but only if the conversation naturally leads to it. Don't be pushy.`;
-      } else {
-        systemPrompt += `\n\nFocus on providing helpful information about private jet chartering while naturally gathering missing details.`;
+        systemPrompt += `\n\nEssential information has been collected. Consider suggesting connecting with a specialist for an exact quote.`;
       }
       
-      // Add formatting instructions
-      systemPrompt += `\n\nFORMATTING GUIDELINES:
-- Use emoji to highlight key points (✈️ for routes, 📅 for dates, 👥 for passengers, 💰 for pricing)
-- Format lists with emoji bullet points
-- Bold important information using **bold text**
-- Break up text into readable chunks with line breaks
-- When providing pricing ranges, format them clearly: **$X,XXX - $Y,YYY**
-- Keep responses concise and easy to read on a mobile device`;
-      
-      // Add important instruction to avoid asking for information we already have
-      systemPrompt += `\n\nIMPORTANT: DO NOT ask for information that has already been provided. Review the conversation state carefully.`;
+      // Important reminder
+      systemPrompt += `\n\nIMPORTANT: DO NOT ask for information that has already been provided.`;
     }
     
     // Prepend system message
@@ -114,54 +92,52 @@ function generateFallbackResponse(query) {
 - 🏢 Airport fees and handling
 
 For example:
-- 🛩 **Light Jet**: $4,000-5,500 per hour
-- ✈️ **Mid-size Jet**: $5,500-7,000 per hour
-- 🚀 **Heavy Jet**: $8,000-12,000 per hour
+- Light Jet: $4,000-5,500 per hour
+- Mid-size Jet: $5,500-7,000 per hour
+- Heavy Jet: $8,000-12,000 per hour
 
-If you'd like a more specific estimate, just let me know your route and passenger count. No pressure! 🙂`;
+If you'd like a more specific estimate, just let me know your route and passenger count.`;
   }
   
   if (lowerQuery.includes('process') || lowerQuery.includes('how does it work') || lowerQuery.includes('booking')) {
-    return `📋 **Booking with CoinWings is simple:**
+    return `📋 Booking with CoinWings is simple:
 
-1️⃣ Share your trip details (route, dates, passengers)
-2️⃣ We provide aircraft options and pricing ranges
-3️⃣ Our aviation team handles all arrangements
-4️⃣ Pay with crypto (BTC, ETH, USDC) or traditional methods
-5️⃣ Enjoy your private flight!
+1. Share your trip details (route, dates, passengers)
+2. We provide aircraft options and pricing ranges
+3. Our aviation team handles all arrangements
+4. Pay with crypto (BTC, ETH, USDC) or traditional methods
+5. Enjoy your private flight!
 
-Would you like to start by telling me about your trip? Or just exploring options for now? Either way is perfectly fine. 👍`;
+Would you like to start by telling me about your trip?`;
   }
   
   if (lowerQuery.includes('aircraft') || lowerQuery.includes('jet') || lowerQuery.includes('plane')) {
-    return `✈️ **Private Aircraft Categories:**
+    return `✈️ Private Aircraft Categories:
 
-- 🛩 **Light Jets** (4-6 passengers)
+- Light Jets (4-6 passengers)
   Perfect for shorter trips (2-3 hours)
   Examples: Citation CJ3, Phenom 300
 
-- ✈️ **Mid-size Jets** (7-9 passengers)
+- Mid-size Jets (7-9 passengers)
   Great for domestic flights (4-5 hours)
   Examples: Citation XLS, Learjet 60
 
-- �� **Heavy Jets** (10-16 passengers)
+- Heavy Jets (10-16 passengers)
   Ideal for international travel (6+ hours)
   Examples: Gulfstream G550, Falcon 7X
 
-What type of trip are you considering? I can help recommend the right aircraft. 🙂`;
+What type of trip are you considering?`;
   }
   
-  if (lowerQuery.includes('crypto') || lowerQuery.includes('payment') || lowerQuery.includes('bitcoin') || lowerQuery.includes('eth')) {
-    return `💰 **Crypto Payments at CoinWings:**
+  if (lowerQuery.includes('crypto') || lowerQuery.includes('payment')) {
+    return `💰 Crypto Payments at CoinWings:
 
 We accept:
-- ₿ Bitcoin (BTC)
-- Ξ Ethereum (ETH)
-- 💵 USDC
+- Bitcoin (BTC)
+- Ethereum (ETH)
+- USDC
 
-The payment process is simple and secure. Once you confirm your booking, we provide wallet addresses for payment. After transaction confirmation, your flight is secured.
-
-We also accept traditional payment methods if you prefer. Would you like more information about our payment process?`;
+The payment process is simple and secure. Once you confirm your booking, we provide wallet addresses for payment. We also accept traditional payment methods if you prefer.`;
   }
   
   // Default fallback
