@@ -14,7 +14,6 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     const userData = ctx.from;
     const score = calculateLeadScore(conversation.getDataForScoring());
     const priority = getLeadPriority(score);
-    const summary = conversation.getSummary();
     
     // Use the name from the conversation object if available
     if (conversation.firstName) {
@@ -26,15 +25,86 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     
     console.log(`Sending ${triggerType} notification for user ${userData.username || userData.id} with score ${score}`);
     
+    // Create a clean summary of the conversation
+    let summary = '';
+    
+    // Add route information
+    if (conversation.origin && conversation.destination) {
+      summary += `Route: ${conversation.origin} to ${conversation.destination}\n`;
+    } else if (conversation.origin) {
+      summary += `Origin: ${conversation.origin}\n`;
+    } else if (conversation.destination) {
+      summary += `Destination: ${conversation.destination}\n`;
+    }
+    
+    // Add passenger information
+    if (conversation.pax) {
+      summary += `Passengers: ${conversation.pax}\n`;
+    }
+    
+    // Add date information
+    if (conversation.exactDate) {
+      summary += `Date: ${conversation.exactDate}\n`;
+    } else if (conversation.dateRange) {
+      summary += `Date Range: ${conversation.dateRange.start} to ${conversation.dateRange.end}\n`;
+    }
+    
+    // Add aircraft information
+    if (conversation.aircraftModel) {
+      summary += `Aircraft: ${conversation.aircraftModel}\n`;
+    } else if (conversation.aircraftCategory) {
+      summary += `Aircraft Category: ${conversation.aircraftCategory}\n`;
+    }
+    
+    // Add country information
+    if (conversation.country) {
+      summary += `Country: ${conversation.country}\n`;
+    }
+    
+    // Add conversation history (last 5 messages)
+    summary += '\nConversation History:\n';
+    const recentMessages = conversation.messages.slice(-10);
+    recentMessages.forEach(message => {
+      const role = message.role === 'user' ? 'User' : 'Bot';
+      // Truncate long messages
+      const text = message.text.length > 100 ? message.text.substring(0, 100) + '...' : message.text;
+      summary += `${role}: ${text}\n`;
+    });
+    
     // Format notification message
-    const notificationText = formatNotificationMessage(
-      userData, 
-      score, 
-      summary, 
-      priority, 
-      triggerType,
-      conversation.funSummary
-    );
+    const triggerEmoji = triggerType === 'manual' ? '👤' : '🤖';
+    const priorityEmoji = priority === 'high' ? '🔴' : (priority === 'medium' ? '🟠' : '🟢');
+    
+    // Get current date and time
+    const now = new Date();
+    const dateTimeStr = now.toLocaleString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    // Create a notification message
+    let message = `${triggerEmoji} ${priorityEmoji} NEW LEAD (${score}/100) - ${dateTimeStr}\n\n`;
+    
+    // Add contact info
+    message += `Contact: ${userData.first_name || ''} ${userData.last_name || ''} ${userData.username ? `(@${userData.username})` : '(no username)'}\n\n`;
+    
+    // Add lead details
+    message += `Lead Details:\n${summary}\n`;
+    
+    // Add lead score and trigger
+    message += `Lead Score: ${score}/100 (${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority)\n`;
+    message += `Trigger: ${triggerType === 'manual' ? 'User Requested' : 'Auto-escalated'}\n`;
+    
+    // Add fun summary if available
+    if (conversation.funSummary) {
+      message += `\n${triggerEmoji} Quick Note: ${conversation.funSummary}\n`;
+    }
+    
+    // Add reply link
+    message += `\nReply to this user: https://t.me/${userData.username || `user?id=${userData.id}`}`;
     
     // Try to store lead in database
     try {
@@ -70,10 +140,10 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         console.log(`Sending notification to channel: ${config.telegram.agentChannel}`);
         
         // Log the notification text for debugging
-        console.log(`Notification text: ${notificationText.substring(0, 100)}...`);
+        console.log(`Notification text: ${message.substring(0, 100)}...`);
         
         // Send without parse_mode to avoid formatting errors
-        await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText);
+        await ctx.telegram.sendMessage(config.telegram.agentChannel, message);
         
         console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
         
@@ -90,7 +160,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
           try {
             console.log(`Sending notification to admin: ${process.env.ADMIN_USER_ID}`);
             await ctx.telegram.sendMessage(process.env.ADMIN_USER_ID, 
-              `Failed to send to agent channel. Here's the notification:\n\n${notificationText}`);
+              `Failed to send to agent channel. Here's the notification:\n\n${message}`);
             console.log('Notification sent to admin as fallback');
             return true;
           } catch (adminError) {
@@ -109,66 +179,6 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     console.error('Error sending agent notification:', error);
     return false;
   }
-}
-
-/**
- * Format the notification message for agents
- * @param {Object} userData - User data from Telegram
- * @param {number} score - Lead score
- * @param {string} summary - Conversation summary
- * @param {string} priority - Priority level (high, medium, low)
- * @param {string} triggerType - What triggered the notification (auto/manual)
- * @param {string} funSummary - Fun summary with emojis
- * @returns {string} Formatted notification message
- */
-function formatNotificationMessage(userData, score, summary, priority, triggerType, funSummary) {
-  const priorityEmoji = priority === 'high' ? '🔴' : (priority === 'medium' ? '🟠' : '🟢');
-  const triggerEmoji = triggerType === 'manual' ? '👤' : '🤖';
-  
-  // Format the summary
-  let formattedSummary = summary || 'No detailed information provided';
-  
-  // Add emoji to common patterns in summary
-  formattedSummary = formattedSummary
-    .replace(/Route:/gi, '✈️ Route:')
-    .replace(/Origin:/gi, '🛫 Origin:')
-    .replace(/Destination:/gi, '🛬 Destination:')
-    .replace(/Passengers:/gi, '👥 Passengers:')
-    .replace(/Date:/gi, '📅 Date:')
-    .replace(/Dates:/gi, '📅 Dates:')
-    .replace(/Aircraft:/gi, '🛩 Aircraft:')
-    .replace(/Special requests:/gi, '✨ Special requests:')
-    .replace(/Payment:/gi, '💰 Payment:');
-  
-  // Get current date and time
-  const now = new Date();
-  const dateTimeStr = now.toLocaleString('en-US', { 
-    month: 'short', 
-    day: 'numeric', 
-    hour: '2-digit', 
-    minute: '2-digit',
-    hour12: true 
-  });
-  
-  // Create a notification message
-  let message = `${triggerEmoji} ${priorityEmoji} NEW LEAD (${score}/100) - ${dateTimeStr}
-    
-Contact: ${userData.first_name || ''} ${userData.last_name || ''} ${userData.username ? `(@${userData.username})` : '(no username)'}
-
-Lead Details:
-${formattedSummary}
-
-Lead Score: ${score}/100 (${priorityEmoji} ${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority)
-Trigger: ${triggerType === 'manual' ? 'User Requested' : 'Auto-escalated'}`;
-
-  // Add fun summary if available
-  if (funSummary) {
-    message += `\n\n${triggerEmoji} Quick Note: ${funSummary}`;
-  }
-
-  message += `\n\nReply to this user: https://t.me/${userData.username || `user?id=${userData.id}`}`;
-  
-  return message;
 }
 
 module.exports = sendAgentNotification; 

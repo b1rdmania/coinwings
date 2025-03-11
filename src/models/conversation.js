@@ -547,84 +547,13 @@ class Conversation {
   }
 
   /**
-   * Get conversation summary
-   * @returns {string} Conversation summary
+   * Get a summary of the conversation for the agent
+   * @returns {string} Summary of the conversation
    */
   getSummary() {
-    // Build a summary of the conversation for the agent
-    let summary = '';
-    
-    // Add route information
-    if (this.origin && this.destination) {
-      summary += `*Route:* ${this.origin} to ${this.destination}\n`;
-    } else if (this.origin) {
-      summary += `*Origin:* ${this.origin}\n`;
-    } else if (this.destination) {
-      summary += `*Destination:* ${this.destination}\n`;
-    }
-    
-    // Add passenger information
-    if (this.pax) {
-      summary += `*Passengers:* ${this.pax}\n`;
-    }
-    
-    // Add date information
-    if (this.exactDate) {
-      summary += `*Date:* ${this.exactDate}\n`;
-    } else if (this.dateRange) {
-      summary += `*Date Range:* ${this.dateRange.start} to ${this.dateRange.end}\n`;
-    }
-    
-    // Add aircraft information
-    if (this.aircraftModel) {
-      summary += `*Aircraft:* ${this.aircraftModel}\n`;
-    } else if (this.aircraftCategory) {
-      summary += `*Aircraft Category:* ${this.aircraftCategory}\n`;
-    }
-    
-    // Add urgency signals
-    if (this.urgencySignals.length > 0) {
-      summary += `*Urgency:* ${this.urgencySignals.join(', ')}\n`;
-    }
-    
-    // Add country information
-    if (this.country) {
-      summary += `*Country:* ${this.country}\n`;
-    }
-    
-    // Add contact information
-    if (this.firstName && this.firstName !== 'Anonymous') {
-      let nameInfo = `*Name:* ${this.firstName}`;
-      if (this.lastName) {
-        nameInfo += ` ${this.lastName}`;
-      }
-      summary += `${nameInfo}\n`;
-    }
-    
-    // Add additional details
-    if (this.additionalDetails) {
-      summary += `*Additional Details:* ${this.additionalDetails}\n`;
-    }
-    
-    // Add information about what has been provided
-    const providedInfo = this.getProvidedInformation();
-    summary += '\n*Information Status:*\n';
-    summary += `- Route: ${providedInfo.route ? '✅' : '❌'}\n`;
-    summary += `- Origin: ${providedInfo.origin ? '✅' : '❌'}\n`;
-    summary += `- Destination: ${providedInfo.destination ? '✅' : '❌'}\n`;
-    summary += `- Passengers: ${providedInfo.passengers ? '✅' : '❌'}\n`;
-    summary += `- Date: ${providedInfo.date ? '✅' : '❌'}\n`;
-    summary += `- Aircraft: ${providedInfo.aircraft ? '✅' : '❌'}\n`;
-    summary += `- Contact: ${providedInfo.contact ? '✅' : '❌'}\n`;
-    
-    // Add conversation history
-    summary += '\n*Conversation History:*\n';
-    this.messages.forEach(message => {
-      const role = message.role === 'user' ? 'User' : 'Bot';
-      summary += `${role}: ${message.text}\n`;
-    });
-    
-    return summary;
+    // This method is no longer used for agent notifications
+    // It's kept for backward compatibility
+    return '';
   }
 
   /**
