@@ -698,7 +698,93 @@ bot.on('text', async (ctx) => {
             if (response) {
                 await ctx.reply(response);
                 conversation.addMessage(response, 'assistant');
+                return;
             }
+        }
+        
+        try {
+            // Attempt OpenAI response
+            console.log('Attempting OpenAI response');
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4",
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are CoinWings' private aviation expert. Use Hemingway-like brevity: short sentences, simple words, active voice. Be friendly but direct.
+
+                        ${conversation.firstName && conversation.firstName !== 'Anonymous' ? `Address the user by their name: ${conversation.firstName}` : ''}
+
+                        Focus on:
+                        - Route information
+                        - Aircraft recommendations
+                        - Approximate pricing
+                        - Next steps
+                        
+                        Use multiple-choice options for key questions. For example:
+                        
+                        "What type of aircraft are you interested in?
+                        • Light Jet (4-6 passengers)
+                        • Mid-size Jet (7-9 passengers)
+                        • Heavy Jet (10-16 passengers)"
+                        
+                        "Have you flown private before?
+                        • Yes, regularly
+                        • Yes, occasionally
+                        • No, first time"
+                        
+                        Ask about the client's country if not mentioned. This helps with aircraft options and regulations.
+                        
+                        Build rapport with lead-in questions:
+                        - Have they flown private before?
+                        - Would they like to know about crypto payment options?
+                        - What's most important in their travel experience?
+                        
+                        IMPORTANT: After gathering basic information (route, passengers, timing), ALWAYS suggest connecting with our team for exact pricing and availability. Tell the user they can connect with a specialist by replying with "yes" or typing "agent".
+                        
+                        If the user mentions specific routes, dates, or shows clear interest in booking, IMMEDIATELY suggest connecting them with an agent by saying: "Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability. Would you like me to do that now?"
+
+                        Current conversation context:
+                        ${conversation.getSummary() || "No specific details yet."}`
+                    },
+                    ...conversation.messages.slice(-5).map(m => ({
+                        role: m.role,
+                        content: m.text
+                    }))
+                ],
+                temperature: 0.7,
+                max_tokens: 500
+            });
+            console.log('OpenAI response received');
+
+            const response = completion.choices[0].message.content;
+            console.log('Sending response to user:', response.substring(0, 50) + '...');
+            await ctx.reply(response);
+            console.log('Response sent to user');
+            
+            // Add bot response to conversation
+            conversation.addMessage(response, 'assistant');
+            console.log('Response added to conversation');
+            
+        } catch (aiError) {
+            console.error('OpenAI Error:', aiError);
+            
+            // Determine appropriate fallback response
+            let response = fallbackResponses.general;
+            const message = ctx.message.text.toLowerCase();
+            
+            if (message.includes('price') || message.includes('cost') || message.includes('how much')) {
+                response = fallbackResponses.pricing;
+            } else if (message.includes('process') || message.includes('how does') || message.includes('how do')) {
+                response = fallbackResponses.process;
+            }
+            
+            console.log('Sending fallback response:', response.substring(0, 50) + '...');
+            await ctx.reply(response);
+            console.log('Fallback response sent');
+            
+            // Add fallback response to conversation
+            conversation.addMessage(response, 'assistant');
+            console.log('Fallback response added to conversation');
         }
     } catch (error) {
         console.error('Error in message handling:', error);
