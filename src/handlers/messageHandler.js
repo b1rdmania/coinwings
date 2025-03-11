@@ -21,6 +21,12 @@ function registerMessageHandler(bot) {
       const conversation = getConversation(userId, username);
       console.log('Conversation retrieved for user:', username);
       
+      // Check if this is a handoff request before adding to conversation
+      const isHandoffRequest = conversation.checkForHandoffRequest(messageText);
+      if (isHandoffRequest) {
+        console.log(`Handoff requested detected via pattern: ${messageText}`);
+      }
+      
       // Add message to conversation history
       conversation.addMessage(messageText);
       console.log('Message added to conversation');
@@ -29,10 +35,28 @@ function registerMessageHandler(bot) {
       const score = calculateLeadScore(conversation.getDataForScoring());
       console.log(`Lead score for ${username}: ${score}`);
       
-      // Check if we should escalate to agent
-      if (shouldEscalateToAgent(score)) {
-        await sendAgentNotification(ctx, conversation);
-        await ctx.reply(config.templates.handoff);
+      // Check if we should escalate to agent (either by score or explicit request)
+      if (shouldEscalateToAgent(score) || isHandoffRequest) {
+        console.log(`Escalating to agent for user ${username} (score: ${score}, handoff requested: ${isHandoffRequest})`);
+        
+        // Send notification to agent channel
+        await sendAgentNotification(ctx, conversation, isHandoffRequest ? 'manual' : 'auto');
+        
+        // Get conversation summary
+        const summary = conversation.getSummary();
+        
+        // Create a confirmation message with the summary
+        const confirmationMessage = `Thanks for your interest in CoinWings!\n\n` +
+          `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+          `We aim to reply within 15 minutes during business hours.\n\n` +
+          `Here's a summary of the information we've sent to our team:\n\n` +
+          `${summary || 'Your flight inquiry details'}\n\n` +
+          `Feel free to ask any other questions you might have while waiting.`;
+        
+        await ctx.reply(confirmationMessage);
+        
+        // Add confirmation to conversation
+        conversation.addMessage(confirmationMessage, 'assistant');
         return;
       }
       

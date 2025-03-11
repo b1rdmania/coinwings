@@ -302,58 +302,123 @@ class Conversation {
    * @private
    */
   checkForHandoffRequest(text) {
-    // Make this method more sensitive to detect any potential handoff request
+    if (!text) return false;
     
-    const handoffPatterns = [
-      /(?:speak|talk)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team|someone)/i,
-      /(?:connect|transfer)\s+(?:me|us)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team|someone)/i,
-      /(?:is|are)\s+(?:there|someone)\s+(?:a|an)\s+(?:human|agent|person|representative|specialist|team)/i,
-      /(?:can|could)\s+(?:i|we|you)\s+(?:get|have|connect)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team|someone)/i,
-      /(?:real|actual)\s+(?:human|agent|person|representative|specialist|team)/i,
-      /(?:send|forward)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team)/i,
-      /(?:agent|human|specialist|team)/i,
-      /(?:yes|sure|ok|okay|connect|please)/i,
-      /(?:book|booking|reserve|reservation)/i,
-      /(?:price|pricing|quote|cost)/i,
-      /(?:exact|specific|detailed)/i,
-      /(?:ready|proceed|go ahead)/i
-    ];
-    
-    // Expanded list of keywords that might indicate a handoff request
-    const handoffKeywords = [
-      'agent', 'human', 'person', 'specialist', 'team', 'send', 'connect', 'talk', 'speak',
-      'book', 'booking', 'reserve', 'reservation', 'charter', 'flight',
-      'price', 'pricing', 'quote', 'cost', 'exact', 'specific', 'detailed',
-      'ready', 'proceed', 'go ahead', 'yes', 'sure', 'ok', 'okay', 'please',
-      'help', 'contact', 'call', 'email', 'message', 'direct', 'now', 'today'
-    ];
-    
-    // Check for patterns
-    for (const pattern of handoffPatterns) {
-      if (pattern.test(text)) {
-        console.log('Handoff requested detected via pattern:', text);
-        this.handoffRequested = true;
-        return;
-      }
-    }
-    
-    // Check for simple keywords
     const lowerText = text.toLowerCase();
-    for (const keyword of handoffKeywords) {
-      if (lowerText.includes(keyword)) {
-        console.log('Handoff requested detected via keyword:', keyword, 'in text:', text);
+    
+    // Direct requests for agent
+    const directPatterns = [
+      'speak to agent',
+      'talk to agent',
+      'connect with agent',
+      'speak to human',
+      'talk to human',
+      'connect with human',
+      'speak to specialist',
+      'talk to specialist',
+      'connect with specialist',
+      'speak to someone',
+      'talk to someone',
+      'connect with someone',
+      'speak to a person',
+      'talk to a person',
+      'connect with a person',
+      'agent please',
+      'human please',
+      'specialist please',
+      'i want to speak to',
+      'i want to talk to',
+      'i need to speak to',
+      'i need to talk to',
+      'connect me',
+      'get me a',
+      'put me in touch',
+      'handoff',
+      'hand off',
+      'transfer me',
+      'escalate',
+      'already told you',
+      'i already said',
+      'i told you',
+      'i already told you'
+    ];
+    
+    // Affirmative responses to handoff suggestions
+    const affirmativeResponses = [
+      'yes',
+      'yes please',
+      'sure',
+      'ok',
+      'okay',
+      'definitely',
+      'absolutely',
+      'of course',
+      'please do',
+      'go ahead',
+      'that would be great',
+      'that sounds good',
+      'i would like that',
+      'proceed',
+      'let\'s do that',
+      'connect me'
+    ];
+    
+    // Check for direct patterns
+    for (const pattern of directPatterns) {
+      if (lowerText.includes(pattern)) {
         this.handoffRequested = true;
-        return;
+        return true;
       }
     }
     
-    // Check for affirmative responses
-    if (lowerText === 'yes' || lowerText === 'y' || lowerText === 'yeah' || lowerText === 'yep' || 
-        lowerText === 'sure' || lowerText === 'ok' || lowerText === 'okay' || lowerText === 'please') {
-      console.log('Handoff requested detected via affirmative response:', text);
-      this.handoffRequested = true;
-      return;
+    // Check for affirmative responses if we've suggested handoff
+    if (this.handoffSuggested) {
+      for (const response of affirmativeResponses) {
+        if (lowerText === response || lowerText.startsWith(response + ' ') || lowerText.endsWith(' ' + response)) {
+          this.handoffRequested = true;
+          return true;
+        }
+      }
     }
+    
+    // Check if the last bot message suggested connecting with a specialist
+    if (this.messages.length >= 2) {
+      const lastBotMessage = this.messages.slice().reverse().find(m => m.role === 'assistant');
+      if (lastBotMessage) {
+        const lastBotText = lastBotMessage.text.toLowerCase();
+        const suggestHandoffPatterns = [
+          'connect you with',
+          'connect with our',
+          'connect with a specialist',
+          'arrange this for you',
+          'would you like me to',
+          'would you like to speak',
+          'would you like to connect'
+        ];
+        
+        let suggestedHandoff = false;
+        for (const pattern of suggestHandoffPatterns) {
+          if (lastBotText.includes(pattern)) {
+            suggestedHandoff = true;
+            break;
+          }
+        }
+        
+        if (suggestedHandoff) {
+          this.handoffSuggested = true;
+          
+          // If user responded with affirmative, mark as handoff requested
+          for (const response of affirmativeResponses) {
+            if (lowerText === response || lowerText.startsWith(response + ' ') || lowerText.endsWith(' ' + response)) {
+              this.handoffRequested = true;
+              return true;
+            }
+          }
+        }
+      }
+    }
+    
+    return this.handoffRequested;
   }
 
   /**

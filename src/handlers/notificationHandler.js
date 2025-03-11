@@ -44,16 +44,41 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     
     // Send to agent channel if configured
     if (config.telegram.agentChannel) {
-      await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText);
-      console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
+      try {
+        console.log(`Attempting to send notification to channel: ${config.telegram.agentChannel}`);
+        await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText);
+        console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
+        return true;
+      } catch (channelError) {
+        console.error('Error sending to agent channel:', channelError);
+        
+        // Try sending as a direct message to the bot owner as fallback
+        try {
+          if (process.env.ADMIN_USER_ID) {
+            console.log(`Attempting to send notification to admin: ${process.env.ADMIN_USER_ID}`);
+            await ctx.telegram.sendMessage(process.env.ADMIN_USER_ID, 
+              `⚠️ Failed to send to agent channel. Here's the notification:\n\n${notificationText}`);
+            console.log('Notification sent to admin as fallback');
+            return true;
+          }
+        } catch (adminError) {
+          console.error('Error sending to admin:', adminError);
+        }
+        
+        // Log the notification that would have been sent
+        console.log('Agent channel notification failed. Notification would have been:');
+        console.log(notificationText);
+        return false;
+      }
     } else {
       console.log('Agent channel not configured. Notification would have been:');
       console.log(notificationText);
+      return false;
     }
     
   } catch (error) {
     console.error('Error sending agent notification:', error);
-    // Don't throw the error - we don't want to break the user experience if notification fails
+    return false;
   }
 }
 
