@@ -12,19 +12,24 @@ class Conversation {
     this.userId = userId;
     this.username = username;
     this.messages = [];
+    this.firstName = null;
+    this.lastName = null;
     this.origin = null;
     this.destination = null;
     this.exactDate = null;
     this.dateRange = null;
     this.mentionedTiming = false;
     this.pax = null;
-    this.aircraftModel = null;
     this.aircraftCategory = null;
+    this.aircraftModel = null;
     this.askedDetailedQuestions = false;
     this.urgencySignals = false;
-    this.lastActivity = Date.now();
     this.handoffRequested = false;
     this.handoffSuggested = false;
+    this.askedName = false;
+    this.country = null;
+    this.additionalDetails = null;
+    this.waitingForAdditionalDetails = false;
     
     // New properties for lead-in questions
     this.askedPreviousExperience = false;
@@ -472,51 +477,60 @@ class Conversation {
    * @returns {string} Conversation summary
    */
   getSummary() {
-    const parts = [];
+    const details = [];
     
-    if (this.firstName) {
-      if (this.lastName) {
-        parts.push(`Name: ${this.firstName} ${this.lastName}`);
-      } else {
-        parts.push(`Name: ${this.firstName}`);
-      }
-    }
-    
+    // Route information (ESSENTIAL)
     if (this.origin && this.destination) {
-      parts.push(`Route: ${this.origin} → ${this.destination}`);
+      details.push(`Route: ${this.origin} → ${this.destination}`);
     } else if (this.origin) {
-      parts.push(`From: ${this.origin}`);
+      details.push(`Origin: ${this.origin}`);
     } else if (this.destination) {
-      parts.push(`To: ${this.destination}`);
+      details.push(`Destination: ${this.destination}`);
     }
     
-    if (this.exactDate) {
-      parts.push(`Date: ${this.exactDate}`);
-    } else if (this.dateRange) {
-      parts.push(`Date Range: ${this.dateRange.start} to ${this.dateRange.end}`);
-    } else if (this.mentionedTiming) {
-      parts.push('Timing: Mentioned');
-    }
-    
+    // Passenger information (ESSENTIAL)
     if (this.pax) {
-      parts.push(`Passengers: ${this.pax}`);
+      details.push(`Passengers: ${this.pax}`);
     }
     
+    // Date information (ESSENTIAL)
+    if (this.exactDate) {
+      details.push(`Date: ${this.exactDate}`);
+    } else if (this.dateRange) {
+      details.push(`Date Range: ${this.dateRange.start} to ${this.dateRange.end}`);
+    } else if (this.mentionedTiming) {
+      details.push(`Timing: Mentioned`);
+    }
+    
+    // Aircraft information
     if (this.aircraftModel) {
-      parts.push(`Aircraft: ${this.aircraftModel}`);
+      details.push(`Aircraft: ${this.aircraftModel}`);
     } else if (this.aircraftCategory) {
-      parts.push(`Aircraft Category: ${this.aircraftCategory}`);
+      details.push(`Aircraft Category: ${this.aircraftCategory}`);
     }
     
-    if (this.country) {
-      parts.push(`Country: ${this.country}`);
-    }
-    
+    // Urgency signals
     if (this.urgencySignals) {
-      parts.push('Urgency: Yes');
+      details.push(`Urgency: Yes`);
     }
     
-    return parts.join('\n');
+    // Country information
+    if (this.country) {
+      details.push(`Country: ${this.country}`);
+    }
+    
+    // Contact information
+    if (this.firstName && this.firstName !== 'Anonymous') {
+      const fullName = this.lastName ? `${this.firstName} ${this.lastName}` : this.firstName;
+      details.push(`Name: ${fullName}`);
+    }
+    
+    // Additional details provided by the user
+    if (this.additionalDetails) {
+      details.push(`Additional Details: ${this.additionalDetails}`);
+    }
+    
+    return details.length > 0 ? details.join('\n') : null;
   }
 }
 

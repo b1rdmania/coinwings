@@ -153,6 +153,12 @@ function createKeyboardOptions(type) {
                 ['I prefer not to say']
             ]).oneTime().resize();
             
+        case 'handoff_with_details':
+            return Markup.keyboard([
+                ['Yes, add more details'],
+                ['No, proceed without additional details']
+            ]).oneTime().resize();
+            
         default:
             return Markup.removeKeyboard();
     }
@@ -451,44 +457,50 @@ bot.on('text', async (ctx) => {
             conversation.mentionedTiming
         );
         
-        // If lead score is high enough or we have basic info, suggest or initiate agent handoff
-        if ((shouldEscalateToAgent(leadScore) || hasBasicInfo) && !conversation.handoffSuggested && conversation.messages.length >= 3) {
-            console.log(`Auto-suggesting handoff for ${ctx.from.username} (score: ${leadScore}, hasBasicInfo: ${hasBasicInfo})`);
+        // Check if we have enough information for a quote (score >= 70)
+        if (shouldEscalateToAgent(leadScore) && !conversation.handoffSuggested && conversation.messages.length >= 3) {
+            console.log(`Lead score high enough for handoff: ${ctx.from.username} (score: ${leadScore})`);
             
-            // If score is high enough, automatically send to agent
-            if (leadScore >= 40) {
-                console.log(`Auto-sending to agent for ${ctx.from.username} (high score: ${leadScore})`);
-                
-                // Get conversation summary
-                const summary = conversation.getSummary();
-                
-                // Automatically send to agent without asking
-                const success = await sendAgentNotification(ctx, conversation, 'auto');
-                
-                if (success) {
-                    console.log('Agent notification sent automatically (high score)');
-                    
-                    // Create a confirmation message with the summary
-                    const confirmationMessage = `Thanks for providing those details!\n\n` +
-                        `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements and provide exact pricing.\n\n` +
-                        `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
-                        `Here's a summary of the information we've sent to our team:\n\n` +
-                        `${summary || 'Your flight inquiry details'}\n\n` +
-                        `Feel free to ask any other questions you might have while waiting.`;
-                    
-                    await ctx.reply(confirmationMessage);
-                    conversation.handoffRequested = false; // Reset to prevent multiple notifications
-                    return;
-                }
-            }
+            // Get conversation summary
+            const summary = conversation.getSummary();
             
-            // Otherwise just suggest handoff
+            // Ask the customer if they want to add more information before sending to an agent
             conversation.handoffSuggested = true;
             
             await ctx.reply(
-                `Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability. Would you like me to do that now?`,
-                createKeyboardOptions('handoff')
+                `I have enough information to connect you with our aviation specialist who can provide exact pricing and availability.\n\n` +
+                `Here's what I'll send to our team:\n\n` +
+                `${summary || 'Your flight inquiry details'}\n\n` +
+                `Would you like to add any other details before I connect you with a specialist?`,
+                createKeyboardOptions('handoff_with_details')
             );
+            return;
+        }
+        
+        // If we have some but not all essential information, ask for the missing pieces
+        if (hasBasicInfo && !shouldEscalateToAgent(leadScore) && !conversation.handoffSuggested && conversation.messages.length >= 3) {
+            console.log(`Asking for missing information: ${ctx.from.username} (score: ${leadScore})`);
+            
+            // Check what information is missing and ask for it
+            let missingInfoMessage = '';
+            
+            if (!conversation.origin && !conversation.destination) {
+                missingInfoMessage = `To provide you with accurate pricing, could you please let me know your departure and arrival locations?`;
+            } else if (!conversation.origin) {
+                missingInfoMessage = `Could you please let me know your departure location?`;
+            } else if (!conversation.destination) {
+                missingInfoMessage = `Could you please let me know your destination?`;
+            } else if (!conversation.pax) {
+                missingInfoMessage = `How many passengers will be traveling? This helps us recommend the right aircraft.`;
+            } else if (!conversation.exactDate && !conversation.dateRange && !conversation.mentionedTiming) {
+                missingInfoMessage = `When are you planning to travel? This helps us check aircraft availability.`;
+            } else {
+                // If we have the essential info but score is still below threshold, ask about preferences
+                missingInfoMessage = `Do you have any specific aircraft preferences or special requirements for your journey?`;
+            }
+            
+            await ctx.reply(missingInfoMessage);
+            conversation.addMessage(missingInfoMessage, 'assistant');
             return;
         }
         
@@ -512,13 +524,75 @@ bot.on('text', async (ctx) => {
         ) {
             console.log('Detected request to connect with agent:', messageText);
             
-            // Always mark as handoff requested to ensure notification is sent
-            conversation.handoffRequested = true;
+            // Automatically send to agent
+            const success = await sendAgentNotification(ctx, conversation, 'auto');
+            
+            if (success) {
+                console.log('Agent notification sent successfully');
+                
+                // Create a confirmation message with the summary
+                const summary = conversation.getSummary();
+                
+                // Create a confirmation message with the summary
+                const confirmationMessage = `Thanks for your interest in CoinWings!\n\n` +
+                    `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+                    `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
+                    `Here's a summary of the information we've sent to our team:\n\n` +
+                    `${summary || 'Your flight inquiry details'}\n\n` +
+                    `Feel free to ask any other questions you might have while waiting.`;
+                
+                await ctx.reply(confirmationMessage);
+                conversation.handoffRequested = false; // Reset to prevent multiple notifications
+            } else {
+                console.log('Failed to send agent notification');
+                await ctx.reply('I\'ll connect you with one of our aviation specialists. Please use the /agent command to submit your inquiry.');
+            }
+            return;
+        }
+        
+        // Handle responses to handoff_with_details keyboard
+        if (messageText === 'yes, add more details') {
+            console.log('User wants to add more details before handoff');
+            
+            // Ask for additional details
+            await ctx.reply(
+                `What additional details would you like to add? For example:\n\n` +
+                `• Special catering requirements\n` +
+                `• Ground transportation needs\n` +
+                `• Specific aircraft preferences\n` +
+                `• Payment method preferences\n` +
+                `• Any other special requests`
+            );
+            
+            // Mark that we're waiting for additional details
+            conversation.waitingForAdditionalDetails = true;
+            conversation.handoffSuggested = false; // Reset so we can suggest again after getting details
+            return;
+        }
+        
+        if (messageText === 'no, proceed without additional details' || 
+            (conversation.handoffSuggested && (
+                messageText === 'yes' || 
+                messageText === 'yes please' || 
+                messageText === 'sure' || 
+                messageText === 'ok' || 
+                messageText === 'okay' ||
+                messageText.includes('connect') || 
+                messageText.includes('speak') || 
+                messageText.includes('talk to') ||
+                messageText.includes('yes, connect') ||
+                messageText.includes('agent') ||
+                messageText.includes('human') ||
+                messageText.includes('specialist') ||
+                messageText.includes('send')
+            ))
+        ) {
+            console.log('Proceeding with agent handoff:', messageText);
             
             // Get conversation summary
             const summary = conversation.getSummary();
             
-            // Automatically send to agent
+            // Send to agent
             const success = await sendAgentNotification(ctx, conversation, 'auto');
             
             if (success) {
@@ -534,9 +608,44 @@ bot.on('text', async (ctx) => {
                 
                 await ctx.reply(confirmationMessage);
                 conversation.handoffRequested = false; // Reset to prevent multiple notifications
+                conversation.handoffSuggested = false; // Reset handoff suggestion
             } else {
                 console.log('Failed to send agent notification');
-                await ctx.reply('I\'ll connect you with one of our aviation specialists. Please use the /agent command to submit your inquiry.');
+                await ctx.reply('I\'ll connect you with one of our aviation specialists. Please try again in a moment.');
+            }
+            return;
+        }
+        
+        // Handle additional details provided by the user
+        if (conversation.waitingForAdditionalDetails) {
+            console.log('Received additional details:', messageText);
+            
+            // Add the details to the conversation
+            conversation.additionalDetails = messageText;
+            conversation.waitingForAdditionalDetails = false;
+            
+            // Get updated conversation summary
+            const summary = conversation.getSummary();
+            
+            // Send to agent with the additional details
+            const success = await sendAgentNotification(ctx, conversation, 'auto');
+            
+            if (success) {
+                console.log('Agent notification sent successfully with additional details');
+                
+                // Create a confirmation message with the summary
+                const confirmationMessage = `Thanks for providing those additional details!\n\n` +
+                    `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+                    `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
+                    `Here's a summary of the information we've sent to our team:\n\n` +
+                    `${summary || 'Your flight inquiry details'}\n\n` +
+                    `Feel free to ask any other questions you might have while waiting.`;
+                
+                await ctx.reply(confirmationMessage);
+                conversation.handoffRequested = false; // Reset to prevent multiple notifications
+            } else {
+                console.log('Failed to send agent notification with additional details');
+                await ctx.reply('I\'ll connect you with one of our aviation specialists. Please try again in a moment.');
             }
             return;
         }
@@ -583,4 +692,27 @@ bot.on('text', async (ctx) => {
             let response = '';
             
             if (lowerText.includes('regularly')) {
-                response = `
+                response = `Great! As an experienced private jet traveler, you'll appreciate our streamlined booking process and flexible options.\n\nWhat's your next destination?`;
+            }
+            
+            if (response) {
+                await ctx.reply(response);
+                conversation.addMessage(response, 'assistant');
+            }
+        }
+    } catch (error) {
+        console.error('Error in message handling:', error);
+        console.error('Error stack:', error.stack);
+        ctx.reply('Sorry, there was an error processing your request.');
+    }
+});
+
+// Start the bot
+bot.launch();
+
+// Enable graceful stop
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));

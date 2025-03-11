@@ -6,14 +6,21 @@
 function calculateLeadScore(conversation) {
   let score = 0;
   
-  // Route specificity (max 25 points)
+  // Essential information for a broker to provide a quote
+  
+  // Route specificity (max 30 points) - ESSENTIAL
   if (conversation.origin && conversation.destination) {
-    score += 25;
+    score += 30; // Increased weight for complete route information
   } else if (conversation.origin || conversation.destination) {
     score += 10;
   }
   
-  // Date specificity (max 25 points)
+  // Passenger count (max 20 points) - ESSENTIAL
+  if (conversation.pax) {
+    score += 20; // Increased weight for passenger count
+  }
+  
+  // Date specificity (max 25 points) - ESSENTIAL
   if (conversation.exactDate) {
     score += 25;
   } else if (conversation.dateRange) {
@@ -22,33 +29,38 @@ function calculateLeadScore(conversation) {
     score += 5;
   }
   
-  // Passenger count (max 15 points)
-  if (conversation.pax) {
-    score += 15;
-  }
-  
-  // Aircraft preference (max 10 points)
+  // Aircraft preference (max 10 points) - HELPFUL BUT NOT ESSENTIAL
   if (conversation.aircraftModel) {
     score += 10;
   } else if (conversation.aircraftCategory) {
     score += 5;
   }
   
-  // Engagement signals (max 15 points)
-  if (conversation.messageCount >= 5) {
-    score += 10;
-  } else if (conversation.messageCount >= 3) {
+  // Contact information (max 5 points)
+  if (conversation.firstName && conversation.firstName !== 'Anonymous') {
     score += 5;
   }
   
+  // Special requirements or preferences (max 5 points)
   if (conversation.askedDetailedQuestions) {
     score += 5;
   }
   
-  // Urgency signals (max 10 points)
+  // Urgency signals (max 5 points)
   if (conversation.urgencySignals) {
-    score += 10;
+    score += 5;
   }
+  
+  console.log('Lead score calculation:', {
+    route: conversation.origin && conversation.destination ? 30 : (conversation.origin || conversation.destination ? 10 : 0),
+    passengers: conversation.pax ? 20 : 0,
+    date: conversation.exactDate ? 25 : (conversation.dateRange ? 15 : (conversation.mentionedTiming ? 5 : 0)),
+    aircraft: conversation.aircraftModel ? 10 : (conversation.aircraftCategory ? 5 : 0),
+    contact: conversation.firstName && conversation.firstName !== 'Anonymous' ? 5 : 0,
+    details: conversation.askedDetailedQuestions ? 5 : 0,
+    urgency: conversation.urgencySignals ? 5 : 0,
+    total: score
+  });
   
   return score;
 }
@@ -59,7 +71,7 @@ function calculateLeadScore(conversation) {
  * @returns {boolean} Whether lead should be escalated
  */
 function shouldEscalateToAgent(score) {
-  return score >= 40; // Significantly lowered threshold for agent escalation
+  return score >= 70; // Set threshold to 70 as requested
 }
 
 /**
