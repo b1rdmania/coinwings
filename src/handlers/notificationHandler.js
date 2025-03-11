@@ -19,34 +19,56 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     // Log notification attempt
     console.log(`Sending ${triggerType} notification for user ${userData.username || userData.id} with score ${score}`);
     
-    // Store lead in database
-    const leadData = {
-      userId: userData.id,
-      username: userData.username || 'Anonymous',
-      firstName: userData.first_name || 'Anonymous',
-      lastName: userData.last_name || '',
-      score: score,
-      priority: priority,
-      triggerType: triggerType,
-      timestamp: new Date().toISOString(),
-      summary: summary,
-      conversation: conversation.messages
-    };
-    
-    await storeLead(leadData);
-    console.log('Lead data stored in database');
-    
     // Format notification message
     const priorityEmoji = priority === 'high' ? '🔴' : (priority === 'medium' ? '🟠' : '🟢');
     const triggerEmoji = triggerType === 'manual' ? '👤' : '🤖';
     
     const notificationText = formatNotificationMessage(userData, score, summary, priorityEmoji, triggerEmoji);
     
+    // Try to store lead in database
+    try {
+      // Prepare lead data
+      const leadData = {
+        userId: userData.id,
+        username: userData.username || 'Anonymous',
+        firstName: userData.first_name || 'Anonymous',
+        lastName: userData.last_name || '',
+        score: score,
+        priority: priority,
+        triggerType: triggerType,
+        timestamp: new Date().toISOString(),
+        summary: summary,
+        conversation: conversation.messages,
+        
+        // Add conversation data if available
+        origin: conversation.origin,
+        destination: conversation.destination,
+        pax: conversation.pax,
+        date: conversation.exactDate || (conversation.dateRange ? `${conversation.dateRange.start} to ${conversation.dateRange.end}` : null),
+        aircraft: conversation.aircraftModel || conversation.aircraftCategory
+      };
+      
+      await storeLead(leadData);
+      console.log('Lead data stored in database');
+    } catch (dbError) {
+      console.error('Error storing lead in database:', dbError);
+      // Continue with notification even if database storage fails
+    }
+    
     // Send to agent channel if configured
     if (config.telegram.agentChannel) {
       try {
         console.log(`Attempting to send notification to channel: ${config.telegram.agentChannel}`);
-        await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText, { parse_mode: 'Markdown' });
+        
+        // Try sending with Markdown formatting
+        try {
+          await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText, { parse_mode: 'Markdown' });
+        } catch (markdownError) {
+          // If Markdown fails, try sending without formatting
+          console.log('Markdown formatting failed, sending without formatting');
+          await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText.replace(/\*/g, ''));
+        }
+        
         console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
         return true;
       } catch (channelError) {
@@ -56,9 +78,18 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         try {
           if (process.env.ADMIN_USER_ID) {
             console.log(`Attempting to send notification to admin: ${process.env.ADMIN_USER_ID}`);
-            await ctx.telegram.sendMessage(process.env.ADMIN_USER_ID, 
-              `⚠️ Failed to send to agent channel. Here's the notification:\n\n${notificationText}`, 
-              { parse_mode: 'Markdown' });
+            
+            // Try sending with Markdown formatting
+            try {
+              await ctx.telegram.sendMessage(process.env.ADMIN_USER_ID, 
+                `⚠️ Failed to send to agent channel. Here's the notification:\n\n${notificationText}`, 
+                { parse_mode: 'Markdown' });
+            } catch (markdownError) {
+              // If Markdown fails, try sending without formatting
+              await ctx.telegram.sendMessage(process.env.ADMIN_USER_ID, 
+                `⚠️ Failed to send to agent channel. Here's the notification:\n\n${notificationText.replace(/\*/g, '')}`);
+            }
+            
             console.log('Notification sent to admin as fallback');
             return true;
           }

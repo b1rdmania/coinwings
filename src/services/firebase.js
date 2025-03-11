@@ -88,24 +88,44 @@ async function storeLead(leadData) {
     const leadId = `lead_${timestamp}_${Math.floor(Math.random() * 1000)}`;
     const leadRef = ref(database, `leads/${leadId}`);
     
+    // Ensure all required fields are present and properly formatted
     const lead = {
       id: leadId,
       timestamp: timestamp,
-      username: leadData.username,
-      telegramId: leadData.telegramId,
+      userId: leadData.userId || 0,
+      username: leadData.username || 'Anonymous',
+      firstName: leadData.firstName || 'Anonymous',
+      lastName: leadData.lastName || '',
+      score: leadData.score || 0,
+      priority: leadData.priority || 'low',
+      triggerType: leadData.triggerType || 'auto',
+      status: 'new',
+      lastUpdated: timestamp,
+      
+      // Optional conversation data
+      summary: leadData.summary || 'No summary available',
+      
+      // Optional trip details
       origin: leadData.origin || null,
       destination: leadData.destination || null,
       date: leadData.date || null,
       pax: leadData.pax || null,
       aircraft: leadData.aircraft || null,
-      score: leadData.score || 0,
-      status: 'new',
+      
+      // Additional fields
       notes: leadData.notes || '',
-      assignedAgent: null,
-      lastUpdated: timestamp
+      assignedAgent: null
     };
     
+    // Store conversation messages as a stringified JSON to avoid Firebase validation issues
+    if (leadData.conversation && Array.isArray(leadData.conversation)) {
+      lead.conversationData = JSON.stringify(leadData.conversation);
+    } else {
+      lead.conversationData = '[]';
+    }
+    
     await set(leadRef, lead);
+    console.log(`Lead ${leadId} stored successfully`);
     return leadId;
   } catch (error) {
     console.error('Error storing lead:', error);
