@@ -189,66 +189,88 @@ For the fun_summary field, be creative and personable - this helps our agents co
       });
     }
     
-    // Call the OpenAI API
-    const completion = await openai.chat.completions.create({
-      model: config.openai.model,
-      messages: openaiMessages,
-      temperature: config.openai.temperature,
-      max_tokens: config.openai.maxTokens,
-      functions: functions,
-      function_call: isHandoffRequest ? { name: "generate_inquiry_summary" } : "auto"
-    });
+    // Call the OpenAI API with retry logic
+    let retries = 0;
+    const maxRetries = 2;
     
-    // Get the response
-    const responseMessage = completion.choices[0].message;
-    
-    // Check if there's a function call
-    if (responseMessage.function_call && responseMessage.function_call.name === "generate_inquiry_summary") {
-      // Parse the function call arguments
-      const summaryData = JSON.parse(responseMessage.function_call.arguments);
-      
-      // Update the conversation with the extracted data
-      if (summaryData.origin) conversation.origin = summaryData.origin;
-      if (summaryData.destination) conversation.destination = summaryData.destination;
-      if (summaryData.passengers) conversation.pax = summaryData.passengers;
-      if (summaryData.date) {
-        if (summaryData.date.includes("to")) {
-          const [start, end] = summaryData.date.split("to").map(d => d.trim());
-          conversation.dateRange = { start, end };
-        } else {
-          conversation.exactDate = summaryData.date;
+    while (retries <= maxRetries) {
+      try {
+        // Call the OpenAI API
+        const completion = await openai.chat.completions.create({
+          model: config.openai.model,
+          messages: openaiMessages,
+          temperature: config.openai.temperature,
+          max_tokens: config.openai.maxTokens,
+          functions: functions,
+          function_call: isHandoffRequest ? { name: "generate_inquiry_summary" } : "auto"
+        });
+        
+        // Get the response
+        const responseMessage = completion.choices[0].message;
+        
+        // Check if there's a function call
+        if (responseMessage.function_call && responseMessage.function_call.name === "generate_inquiry_summary") {
+          try {
+            // Parse the function call arguments
+            const summaryData = JSON.parse(responseMessage.function_call.arguments);
+            
+            // Update the conversation with the extracted data
+            if (summaryData.origin) conversation.origin = summaryData.origin;
+            if (summaryData.destination) conversation.destination = summaryData.destination;
+            if (summaryData.passengers) conversation.pax = summaryData.passengers;
+            if (summaryData.date) {
+              if (summaryData.date.includes("to")) {
+                const [start, end] = summaryData.date.split("to").map(d => d.trim());
+                conversation.dateRange = { start, end };
+              } else {
+                conversation.exactDate = summaryData.date;
+              }
+            }
+            if (summaryData.aircraft) {
+              if (["light", "midsize", "heavy"].includes(summaryData.aircraft.toLowerCase())) {
+                conversation.aircraftCategory = summaryData.aircraft;
+              } else {
+                conversation.aircraftModel = summaryData.aircraft;
+              }
+            }
+            if (summaryData.name) {
+              const nameParts = summaryData.name.split(" ");
+              conversation.firstName = nameParts[0];
+              if (nameParts.length > 1) {
+                conversation.lastName = nameParts.slice(1).join(" ");
+              }
+            }
+            if (summaryData.additional_details) {
+              conversation.additionalDetails = summaryData.additional_details;
+            }
+            if (summaryData.fun_summary) {
+              conversation.funSummary = summaryData.fun_summary;
+            }
+          } catch (parseError) {
+            console.error('Error parsing function call arguments:', parseError);
+            // Continue with the response even if parsing fails
+          }
         }
-      }
-      if (summaryData.aircraft) {
-        if (["light", "midsize", "heavy"].includes(summaryData.aircraft.toLowerCase())) {
-          conversation.aircraftCategory = summaryData.aircraft;
-        } else {
-          conversation.aircraftModel = summaryData.aircraft;
+        
+        console.log('OpenAI response received');
+        return responseMessage.content || "I'm processing your request. How else can I help you today?";
+      } catch (error) {
+        retries++;
+        console.error(`OpenAI API error (attempt ${retries}/${maxRetries + 1}):`, error);
+        
+        if (retries > maxRetries) {
+          // If we've exhausted retries, return a fallback response
+          console.log('Exhausted retries, using fallback response');
+          return generateFallbackResponse(messages[messages.length - 1].content);
         }
+        
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries - 1)));
       }
-      if (summaryData.name) {
-        const nameParts = summaryData.name.split(" ");
-        conversation.firstName = nameParts[0];
-        if (nameParts.length > 1) {
-          conversation.lastName = nameParts.slice(1).join(" ");
-        }
-      }
-      if (summaryData.additional_details) {
-        conversation.additionalDetails = summaryData.additional_details;
-      }
-      if (summaryData.fun_summary) {
-        conversation.funSummary = summaryData.fun_summary;
-      }
-      
-      // Return the regular response
-      return completion.choices[0].message.content;
     }
-    
-    console.log('OpenAI response received');
-    return completion.choices[0].message.content;
   } catch (error) {
     console.error('Error with OpenAI:', error);
-    throw error;
+    return generateFallbackResponse(messages[messages.length - 1].content);
   }
 }
 

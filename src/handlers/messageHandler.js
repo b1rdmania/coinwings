@@ -295,14 +295,14 @@ async function handleOpenAIResponse(ctx, conversation) {
       conversation.notificationSent = true;
     }
   } catch (error) {
-    console.error('Error with OpenAI:', error);
+    console.error('Error in handleOpenAIResponse:', error);
     
-    // Use fallback response if OpenAI fails
-    const fallbackResponse = openaiService.generateFallbackResponse(ctx.message.text);
-    await ctx.reply(fallbackResponse);
-    
-    // Add fallback response to conversation
-    conversation.addMessage(fallbackResponse, 'assistant');
+    // Only send a fallback response if we haven't already sent one
+    if (!error.message || !error.message.includes('already handled')) {
+      const fallbackResponse = config.templates.fallback;
+      await ctx.reply(fallbackResponse);
+      conversation.addMessage(fallbackResponse, 'assistant');
+    }
   }
 }
 
