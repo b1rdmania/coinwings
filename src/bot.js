@@ -202,17 +202,26 @@ bot.command('agent', async (ctx) => {
         
         // Notify agent channel if configured
         if (config.telegram.agentChannel) {
-            const priority = getLeadPriority(leadData.score);
-            const priorityEmoji = priority === 'high' ? '🔴' : priority === 'medium' ? '🟡' : '🟢';
-            
-            const agentMessage = `${priorityEmoji} **NEW LEAD**\n\n` +
-                `**Lead ID:** ${leadId}\n` +
-                `**User:** @${ctx.from.username}\n` +
-                `**Score:** ${leadData.score}/100\n\n` +
-                `**Details:**\n${conversation.getSummary()}\n\n` +
-                `**Action Required:** Agent should contact @${ctx.from.username} directly.`;
-            
-            await bot.telegram.sendMessage(config.telegram.agentChannel, agentMessage, { parse_mode: 'Markdown' });
+            try {
+                const priority = getLeadPriority(leadData.score);
+                const priorityEmoji = priority === 'high' ? '🔴' : priority === 'medium' ? '🟡' : '🟢';
+                
+                const agentMessage = `${priorityEmoji} **NEW LEAD**\n\n` +
+                    `**Lead ID:** ${leadId}\n` +
+                    `**User:** @${ctx.from.username}\n` +
+                    `**Score:** ${leadData.score}/100\n\n` +
+                    `**Details:**\n${conversation.getSummary()}\n\n` +
+                    `**Action Required:** Agent should contact @${ctx.from.username} directly.`;
+                
+                await bot.telegram.sendMessage(config.telegram.agentChannel, agentMessage, { parse_mode: 'Markdown' });
+                console.log(`Successfully sent notification to agent channel for lead ${leadId}`);
+            } catch (channelError) {
+                console.error('Error sending to agent channel:', channelError.message);
+                console.error('Please ensure the bot is added as an admin to the channel with ID:', config.telegram.agentChannel);
+                // Continue execution - don't let channel errors affect the user experience
+            }
+        } else {
+            console.warn('Agent channel not configured. Set AGENT_CHANNEL environment variable to enable notifications.');
         }
         
         // Reply to user
