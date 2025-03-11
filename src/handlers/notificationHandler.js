@@ -150,15 +150,35 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         console.log(`Agent channel ID type: ${typeof config.telegram.agentChannel}`);
         console.log(`Agent channel ID value: ${config.telegram.agentChannel}`);
         
-        // Try to convert to number if it's a string
-        let channelId = config.telegram.agentChannel;
-        if (typeof channelId === 'string' && !isNaN(channelId)) {
-          channelId = parseInt(channelId, 10);
-          console.log(`Converted channel ID to number: ${channelId}`);
+        // Try different formats for the channel ID
+        const channelIdOptions = [
+          config.telegram.agentChannel, // Original format
+          parseInt(config.telegram.agentChannel, 10), // As number
+          config.telegram.agentChannel.replace('-', ''), // Without dash
+          parseInt(config.telegram.agentChannel.replace('-', ''), 10), // Without dash as number
+          config.telegram.agentChannel.startsWith('-') ? config.telegram.agentChannel : `-${config.telegram.agentChannel}` // Ensure it has a dash
+        ];
+        
+        let success = false;
+        let error = null;
+        
+        // Try each format until one works
+        for (const channelId of channelIdOptions) {
+          try {
+            console.log(`Trying channel ID format: ${channelId} (${typeof channelId})`);
+            await ctx.telegram.sendMessage(channelId, message);
+            console.log(`Success with channel ID: ${channelId}`);
+            success = true;
+            break;
+          } catch (e) {
+            console.error(`Failed with channel ID ${channelId}:`, e.message);
+            error = e;
+          }
         }
         
-        // Send without parse_mode to avoid formatting errors
-        await ctx.telegram.sendMessage(channelId, message);
+        if (!success) {
+          throw error || new Error('All channel ID formats failed');
+        }
         
         console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
         
