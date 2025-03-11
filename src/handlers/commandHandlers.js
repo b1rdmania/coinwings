@@ -3,6 +3,7 @@ const config = require('../config/config');
 const { getConversation } = require('../models/conversation');
 const { calculateLeadScore, shouldEscalateToAgent } = require('../utils/leadScoring');
 const sendAgentNotification = require('./notificationHandler');
+const { responses } = require('../config/responses');
 
 /**
  * Register all command handlers for the bot
@@ -11,22 +12,12 @@ const sendAgentNotification = require('./notificationHandler');
 function registerCommandHandlers(bot) {
   // Start command
   bot.start((ctx) => {
-    ctx.reply(config.templates.welcome, createKeyboardOptions('default'));
+    ctx.reply(responses.welcome_message.response, createKeyboardOptions('default'));
   });
 
   // Help command
   bot.help((ctx) => {
-    ctx.reply(`✈️ **How I Can Help You**
-
-I can assist with all aspects of private jet chartering:
-
-- 🛫 Get pricing estimates for your routes
-- 🧳 Find the right aircraft for your needs
-- 📋 Explain the booking process
-- 💰 Discuss crypto payment options (BTC, ETH, USDC)
-- 👨‍✈️ Connect you with a specialist for exact quotes
-
-Just chat naturally about what you need, or use the buttons below to get started.`, createKeyboardOptions('default'));
+    ctx.reply(responses.how_it_works.response + "\n\n" + responses.faq.response, createKeyboardOptions('default'));
   });
 
   // Aircraft selection actions

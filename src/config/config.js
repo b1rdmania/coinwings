@@ -67,7 +67,7 @@ When you have enough information (route, passengers, dates), suggest connecting 
     
     // Response templates
     templates: {
-        welcome: "Hey there, welcome to CoinWings. Looking for a private jet? I can walk you through how it works, what to consider, and get you an estimate if needed. No pressure, just here to help. 🚀",
+        welcome: "Hey there, welcome to CoinWings. 🚀 Looking for a private jet? I can walk you through how it works, what to consider, and get you an estimate if needed. No pressure, just here to help. ✈️",
         handoff: "Thanks for providing those details! I've passed your inquiry to one of our aviation specialists who will get back to you shortly with more information. They'll be able to provide an exact quote and answer any specific questions you might have.",
         missingInfo: "To help you better, I'd need a few more details about what you're looking for. No rush though - just let me know when you're ready to share more about your trip.",
         fallback: "Sorry about that - I'm having a bit of trouble processing your request. Could you rephrase that, or let me know specifically what you'd like to know about private jet charters?"

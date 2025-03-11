@@ -16,6 +16,14 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     const priority = getLeadPriority(score);
     const summary = conversation.getSummary();
     
+    // Use the name from the conversation object if available
+    if (conversation.firstName) {
+      userData.first_name = conversation.firstName;
+    }
+    if (conversation.lastName) {
+      userData.last_name = conversation.lastName;
+    }
+    
     console.log(`Sending ${triggerType} notification for user ${userData.username || userData.id} with score ${score}`);
     
     // Format notification message
@@ -26,8 +34,8 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       const leadData = {
         userId: userData.id,
         username: userData.username || 'Anonymous',
-        firstName: userData.first_name || 'Anonymous',
-        lastName: userData.last_name || '',
+        firstName: conversation.firstName || userData.first_name || 'Anonymous',
+        lastName: conversation.lastName || userData.last_name || '',
         score: score,
         priority: priority,
         triggerType: triggerType,

@@ -3,6 +3,7 @@ const { calculateLeadScore, shouldEscalateToAgent } = require('../utils/leadScor
 const openaiService = require('../services/openai');
 const sendAgentNotification = require('./notificationHandler');
 const config = require('../config/config');
+const { findMatchingResponse } = require('../config/responses');
 
 /**
  * Register message handler for the bot
@@ -113,6 +114,29 @@ Feel free to ask any other questions while you wait.`;
         
         // Add confirmation to conversation
         conversation.addMessage(confirmationMessage, 'assistant');
+        return;
+      }
+      
+      // Check for predefined responses
+      const predefinedResponse = findMatchingResponse(messageText);
+      if (predefinedResponse) {
+        console.log(`Using predefined response for: ${messageText}`);
+        
+        // Format the response with user data if needed
+        let formattedResponse = predefinedResponse;
+        
+        // Replace placeholders with actual data if it's the agent handoff response
+        if (predefinedResponse.includes('{from}')) {
+          formattedResponse = formattedResponse
+            .replace('{from}', conversation.origin || '[Not specified]')
+            .replace('{to}', conversation.destination || '[Not specified]')
+            .replace('{date}', conversation.exactDate || conversation.dateRange || '[Not specified]')
+            .replace('{passengers}', conversation.pax || '[Not specified]')
+            .replace('{payment}', 'Yes'); // Default to Yes for crypto payment
+        }
+        
+        await ctx.reply(formattedResponse);
+        conversation.addMessage(formattedResponse, 'assistant');
         return;
       }
       

@@ -646,6 +646,11 @@ class Conversation {
       return "Could you please tell me your destination?";
     }
     
+    // Ask for name earlier in the conversation, after getting route information
+    if (!info.hasContact && this.messages.length >= 5) {
+      return "Thanks for that information. May I ask your name so I can personalize our conversation?";
+    }
+    
     if (!info.hasPassengers) {
       return "How many passengers will be traveling?";
     }
@@ -658,6 +663,7 @@ class Conversation {
       return "Do you have a preferred type of aircraft for this journey?";
     }
     
+    // We already asked for contact earlier, but if we still don't have it, ask again
     if (!info.hasContact) {
       return "Would you be willing to share your name for a more personalized experience?";
     }

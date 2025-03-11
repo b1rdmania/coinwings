@@ -23,6 +23,12 @@ async function generateResponse(messages, conversation) {
     if (conversation) {
       systemPrompt += `\n\nCurrent conversation state:`;
       
+      // Add user's name if available
+      if (conversation.firstName) {
+        systemPrompt += `\n- User's name: ${conversation.firstName}${conversation.lastName ? ' ' + conversation.lastName : ''}`;
+        systemPrompt += `\n- IMPORTANT: Address the user by their name to create a personalized experience.`;
+      }
+      
       // Add known information
       if (conversation.origin) systemPrompt += `\n- Origin: ${conversation.origin}`;
       if (conversation.destination) systemPrompt += `\n- Destination: ${conversation.destination}`;
