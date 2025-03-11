@@ -643,16 +643,8 @@ bot.on('text', async (ctx) => {
     }
 });
 
-// Keep-alive server for Heroku
-const server = http.createServer((req, res) => {
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    res.end('CoinWings Bot is running!\n');
-});
-
 // Set up webhook
 const PORT = process.env.PORT || 3000;
-server.listen(PORT);
-console.log('Server started on port', PORT);
 
 // Start bot with webhook
 bot.launch({
@@ -661,7 +653,7 @@ bot.launch({
         port: PORT
     }
 }).then(() => {
-    console.log('CoinWings bot is running with webhook...');
+    console.log('CoinWings bot is running with webhook on port', PORT);
 }).catch((err) => {
     console.error('Error starting bot:', err);
 });
