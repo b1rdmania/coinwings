@@ -44,9 +44,14 @@ class Conversation {
   /**
    * Add a message to the conversation
    * @param {string} text - Message text
-   * @param {string} role - Message role (user or bot)
+   * @param {string} role - Message role (user/assistant)
    */
   addMessage(text, role = 'user') {
+    // Ensure role is compatible with OpenAI
+    if (role === 'bot') {
+      role = 'assistant';
+    }
+    
     this.messages.push({
       text,
       role,

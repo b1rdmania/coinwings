@@ -67,7 +67,7 @@ bot.command('start', async (ctx) => {
         await ctx.reply(welcomeMessage);
         
         // Add bot message to conversation
-        conversation.addMessage(welcomeMessage, 'bot');
+        conversation.addMessage(welcomeMessage, 'assistant');
         
         // Ask for name if we don't have it yet
         if (!conversation.firstName && !conversation.askedName) {
@@ -75,14 +75,14 @@ bot.command('start', async (ctx) => {
             setTimeout(async () => {
                 const nameQuestion = `What's your name? This helps us personalize your experience.`;
                 await ctx.reply(nameQuestion, createKeyboardOptions('name_response'));
-                conversation.addMessage(nameQuestion, 'bot');
+                conversation.addMessage(nameQuestion, 'assistant');
             }, 1000);
         } else {
             // If we already have the name, ask how we can help
             setTimeout(async () => {
                 const helpQuestion = `How can we help you today${conversation.firstName ? ', ' + conversation.firstName : ''}?`;
                 await ctx.reply(helpQuestion);
-                conversation.addMessage(helpQuestion, 'bot');
+                conversation.addMessage(helpQuestion, 'assistant');
             }, 1000);
         }
     } catch (error) {
@@ -166,7 +166,7 @@ bot.command('aircraft', async (ctx) => {
         const message = `What type of private jet are you interested in?`;
         
         await ctx.reply(message, createKeyboardOptions('aircraft'));
-        conversation.addMessage(message, 'bot');
+        conversation.addMessage(message, 'assistant');
     } catch (error) {
         console.error('Error in aircraft command:', error);
         ctx.reply('Sorry, there was an error processing your request.');
@@ -181,7 +181,7 @@ bot.command('routes', async (ctx) => {
         const message = `Which popular route are you interested in?`;
         
         await ctx.reply(message, createKeyboardOptions('popular_routes'));
-        conversation.addMessage(message, 'bot');
+        conversation.addMessage(message, 'assistant');
     } catch (error) {
         console.error('Error in routes command:', error);
         ctx.reply('Sorry, there was an error processing your request.');
@@ -196,7 +196,7 @@ bot.command('faq', async (ctx) => {
         const message = `What would you like to know more about?`;
         
         await ctx.reply(message, createKeyboardOptions('faq'));
-        conversation.addMessage(message, 'bot');
+        conversation.addMessage(message, 'assistant');
     } catch (error) {
         console.error('Error in faq command:', error);
         ctx.reply('Sorry, there was an error processing your request.');
@@ -293,7 +293,7 @@ bot.command('agent', async (ctx) => {
                 `In the meantime, feel free to ask any other questions you might have.`;
             
             await ctx.reply(replyMessage);
-            conversation.addMessage(replyMessage, 'bot');
+            conversation.addMessage(replyMessage, 'assistant');
         } else {
             ctx.reply('Sorry, there was an error connecting you with an agent. Please try again later.');
         }
@@ -317,7 +317,7 @@ bot.command('help', async (ctx) => {
             `You can also just chat naturally about your flight requirements! When you're ready to book, I'll connect you with one of our aviation specialists.`;
         
         await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
-        conversation.addMessage(helpMessage, 'bot');
+        conversation.addMessage(helpMessage, 'assistant');
     } catch (error) {
         console.error('Error in help command:', error);
         ctx.reply('Sorry, there was an error processing your request.');
@@ -391,7 +391,7 @@ bot.on('text', async (ctx) => {
         if (shouldEscalateToAgent(leadScore) && !conversation.handoffSuggested && conversation.messages.length >= 6) {
             // Check message content for evidence of lead-in questions being asked
             const lastFiveMessages = conversation.messages.slice(-5);
-            const botMessages = lastFiveMessages.filter(m => m.role === 'assistant' || m.role === 'bot');
+            const botMessages = lastFiveMessages.filter(m => m.role === 'assistant');
             
             // Look for lead-in questions in bot messages
             let hasAskedLeadInQuestions = false;
