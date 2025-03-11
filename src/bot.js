@@ -62,13 +62,29 @@ bot.command('start', async (ctx) => {
         const conversation = getConversation(ctx.from.id, ctx.from.username);
         
         const welcomeMessage = `✈️ Welcome to CoinWings – private aviation for the crypto jet set.\n\n` +
-            `We fly fast, book discreetly, and accept crypto. 🚀\n\n` +
-            `How can we help?`;
+            `We fly fast, book discreetly, and accept crypto. 🚀`;
         
         await ctx.reply(welcomeMessage);
         
         // Add bot message to conversation
         conversation.addMessage(welcomeMessage, 'bot');
+        
+        // Ask for name if we don't have it yet
+        if (!conversation.firstName && !conversation.askedName) {
+            conversation.askedName = true;
+            setTimeout(async () => {
+                const nameQuestion = `What's your name? This helps us personalize your experience.`;
+                await ctx.reply(nameQuestion, createKeyboardOptions('name_response'));
+                conversation.addMessage(nameQuestion, 'bot');
+            }, 1000);
+        } else {
+            // If we already have the name, ask how we can help
+            setTimeout(async () => {
+                const helpQuestion = `How can we help you today${conversation.firstName ? ', ' + conversation.firstName : ''}?`;
+                await ctx.reply(helpQuestion);
+                conversation.addMessage(helpQuestion, 'bot');
+            }, 1000);
+        }
     } catch (error) {
         console.error('Error in start command:', error);
         ctx.reply('Sorry, there was an error processing your request.');
@@ -130,6 +146,11 @@ function createKeyboardOptions(type) {
                 ['Payment Options'],
                 ['Aircraft Information'],
                 ['Safety Standards']
+            ]).oneTime().resize();
+            
+        case 'name_response':
+            return Markup.keyboard([
+                ['I prefer not to say']
             ]).oneTime().resize();
             
         default:
@@ -199,6 +220,8 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         const leadData = {
             username: ctx.from.username,
             telegramId: ctx.from.id,
+            firstName: conversation.firstName,
+            lastName: conversation.lastName,
             origin: conversation.origin,
             destination: conversation.destination,
             date: conversation.exactDate || (conversation.dateRange ? `${conversation.dateRange.start} to ${conversation.dateRange.end}` : null),
@@ -229,6 +252,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
                 const agentMessage = `${priorityEmoji} **NEW LEAD**\n\n` +
                     `**Lead ID:** ${leadId}\n` +
                     `**User:** @${ctx.from.username}\n` +
+                    `**Name:** ${conversation.firstName ? (conversation.lastName ? `${conversation.firstName} ${conversation.lastName}` : conversation.firstName) : 'Not provided'}\n` +
                     `**Score:** ${leadData.score}/100\n` +
                     `**Trigger:** ${triggerType === 'auto' ? 'Automatic' : 'User requested'}\n\n` +
                     `**Details:**\n${summary || 'No specific details extracted'}\n\n` +
@@ -310,6 +334,35 @@ bot.on('text', async (ctx) => {
         
         // Add user message to conversation
         conversation.addMessage(ctx.message.text);
+        
+        // Handle "I prefer not to say" response for name
+        if (ctx.message.text === 'I prefer not to say' && conversation.askedName && !conversation.firstName) {
+            conversation.firstName = 'Anonymous';
+            await ctx.reply(`No problem! How can I help you today?`);
+            return;
+        }
+        
+        // Check if we should ask for name early in the conversation
+        if (!conversation.firstName && !conversation.askedName && conversation.messages.length <= 3) {
+            conversation.askedName = true;
+            await ctx.reply(`What's your name? This helps us personalize your experience.`, createKeyboardOptions('name_response'));
+            return;
+        }
+        
+        // If this is the first message after asking for name, try to extract name
+        if (conversation.askedName && !conversation.firstName && conversation.messages.length >= 2) {
+            // The extractName method will be called in analyzeMessage, but let's check if it worked
+            if (!conversation.firstName) {
+                // Try to extract name directly from this message
+                conversation.extractName(ctx.message.text);
+                
+                // If we got a name, acknowledge it
+                if (conversation.firstName && conversation.firstName !== 'Anonymous') {
+                    await ctx.reply(`Thanks, ${conversation.firstName}! How can I help you with private aviation today?`);
+                    return;
+                }
+            }
+        }
         
         // Check if user requested agent
         if (conversation.handoffRequested) {
@@ -470,19 +523,18 @@ bot.on('text', async (ctx) => {
                     `We accept wire transfers, credit cards, and bank transfers.\n\n` +
                     `Options:\n` +
                     `• Wire transfer (preferred for larger amounts)\n` +
-                    `• Credit card (convenience fee applies)\n` +
-                    `• Bank transfer (may require additional processing time)`;
+                    `• Credit card (2.9% fee)\n` +
+                    `• Bank transfer (free for international flights)`;
             } else if (lowerText.includes('both')) {
                 response = `**Payment Options**\n\n` +
-                    `Crypto:\n` +
-                    `• BTC, ETH, USDC\n` +
-                    `• Fast processing\n` +
-                    `• No currency conversion fees\n\n` +
-                    `Traditional:\n` +
-                    `• Wire transfer\n` +
-                    `• Credit card\n` +
-                    `• Bank transfer\n\n` +
-                    `All payment details provided after booking confirmation.`;
+                    `We accept BTC, ETH, USDC, wire transfers, credit cards, and bank transfers.\n\n` +
+                    `Crypto benefits:\n` +
+                    `• Fast transactions\n` +
+                    `• No bank delays\n` +
+                    `• Privacy\n` +
+                    `• No currency conversion fees for international flights\n\n` +
+                    `Credit card fee: 2.9%\n` +
+                    `Bank transfer fee: Free for international flights`;
             }
             
             if (response) {
@@ -490,235 +542,14 @@ bot.on('text', async (ctx) => {
                 return;
             }
         }
-        
-        // Handle keyboard responses for timing
-        if (['within a week', 'within a month', 'just exploring options'].includes(ctx.message.text.toLowerCase())) {
-            let response = '';
-            
-            if (lowerText.includes('week')) {
-                response = `For flights within a week, we recommend booking as soon as possible to ensure aircraft availability.\n\nCan you share your specific travel dates?`;
-                conversation.mentionedTiming = true;
-            } else if (lowerText.includes('month')) {
-                response = `Booking within a month gives us good flexibility to find the perfect aircraft for your needs.\n\nDo you have specific dates in mind?`;
-                conversation.mentionedTiming = true;
-            } else if (lowerText.includes('exploring')) {
-                response = `No problem! We're happy to provide information to help with your planning.\n\nAny specific routes or aircraft types you're curious about?`;
-            }
-            
-            if (response) {
-                await ctx.reply(response);
-                return;
-            }
-        }
-        
-        // Handle keyboard responses for popular routes
-        if (['new york to miami', 'london to dubai', 'san francisco to austin', 'custom route'].includes(ctx.message.text.toLowerCase())) {
-            try {
-                const routesInfo = await getRouteInfo();
-                let routeKey = '';
-                
-                if (lowerText.includes('new york') && lowerText.includes('miami')) {
-                    routeKey = 'new_york_miami';
-                    conversation.origin = 'New York';
-                    conversation.destination = 'Miami';
-                } else if (lowerText.includes('london') && lowerText.includes('dubai')) {
-                    routeKey = 'london_dubai';
-                    conversation.origin = 'London';
-                    conversation.destination = 'Dubai';
-                } else if (lowerText.includes('san francisco') && lowerText.includes('austin')) {
-                    routeKey = 'san_francisco_austin';
-                    conversation.origin = 'San Francisco';
-                    conversation.destination = 'Austin';
-                } else if (lowerText.includes('custom')) {
-                    await ctx.reply('What route are you interested in? Please specify origin and destination cities.');
-                    return;
-                }
-                
-                if (routesInfo && routesInfo.popular_routes && routesInfo.popular_routes[routeKey]) {
-                    const route = routesInfo.popular_routes[routeKey];
-                    const message = `**${route.origin} to ${route.destination}**\n\n` +
-                        `• Distance: ${route.distance}\n` +
-                        `• Flight time:\n` +
-                        `  - Light jet: ${route.flight_time.light_jet || 'N/A'}\n` +
-                        `  - Mid-size jet: ${route.flight_time.midsize_jet || 'N/A'}\n` +
-                        `  - Heavy jet: ${route.flight_time.heavy_jet || 'N/A'}\n\n` +
-                        `• Estimated pricing:\n` +
-                        `  - Light jet: ${route.pricing.light_jet || 'N/A'}\n` +
-                        `  - Mid-size jet: ${route.pricing.midsize_jet || 'N/A'}\n` +
-                        `  - Heavy jet: ${route.pricing.heavy_jet || 'N/A'}\n\n` +
-                        `• Popular airports:\n` +
-                        `  - Origin: ${route.popular_airports.origin.join(', ')}\n` +
-                        `  - Destination: ${route.popular_airports.destination.join(', ')}\n\n` +
-                        `${route.notes}\n\n` +
-                        `When are you looking to travel?`;
-                    
-                    await ctx.reply(message, { parse_mode: 'Markdown' });
-                    return;
-                }
-            } catch (error) {
-                console.error('Error handling route selection:', error);
-            }
-        }
-        
-        // Handle keyboard responses for FAQ categories
-        if (['booking process', 'payment options', 'aircraft information', 'safety standards'].includes(ctx.message.text.toLowerCase())) {
-            try {
-                const faqInfo = await getFAQ();
-                let response = '';
-                
-                if (lowerText.includes('booking process')) {
-                    response = `**Booking Process**\n\n` +
-                        `• ${faqInfo.booking_process.how_to_book}\n\n` +
-                        `• ${faqInfo.booking_process.advance_notice}\n\n` +
-                        `• ${faqInfo.booking_process.cancellation_policy}`;
-                } else if (lowerText.includes('payment')) {
-                    response = `**Payment Options**\n\n` +
-                        `• ${faqInfo.payment.accepted_cryptocurrencies}\n\n` +
-                        `• ${faqInfo.payment.payment_process}\n\n` +
-                        `• ${faqInfo.payment.fiat_options}`;
-                } else if (lowerText.includes('aircraft')) {
-                    response = `**Aircraft Information**\n\n` +
-                        `• ${faqInfo.aircraft.selection_criteria}\n\n` +
-                        `• ${faqInfo.aircraft.amenities}\n\n` +
-                        `• ${faqInfo.aircraft.pets_policy}`;
-                } else if (lowerText.includes('safety')) {
-                    response = `**Safety Standards**\n\n` +
-                        `• ${faqInfo.safety.standards}\n\n` +
-                        `• ${faqInfo.safety.covid_measures}\n\n` +
-                        `• ${faqInfo.safety.certifications}`;
-                }
-                
-                if (response) {
-                    await ctx.reply(response, { parse_mode: 'Markdown' });
-                    return;
-                }
-            } catch (error) {
-                console.error('Error handling FAQ selection:', error);
-            }
-        }
-        
-        // If asking about aircraft types
-        if (
-            (lowerText.includes('aircraft') || lowerText.includes('jet') || lowerText.includes('plane')) && 
-            (lowerText.includes('type') || lowerText.includes('kind') || lowerText.includes('option'))
-        ) {
-            await ctx.reply('What type of private jet are you interested in?', createKeyboardOptions('aircraft'));
-            return;
-        }
-        
-        // If asking about experience
-        if (lowerText.includes('experience') && lowerText.includes('?')) {
-            await ctx.reply('Have you flown on a private jet before?', createKeyboardOptions('experience'));
-            return;
-        }
-        
-        // If asking about payment
-        if (lowerText.includes('payment') || lowerText.includes('pay') || lowerText.includes('crypto')) {
-            await ctx.reply('Which payment options would you like to learn about?', createKeyboardOptions('payment'));
-            return;
-        }
-        
-        // If asking about timing
-        if (lowerText.includes('when') || lowerText.includes('timing') || lowerText.includes('schedule')) {
-            await ctx.reply('What is your timeframe for this trip?', createKeyboardOptions('timing'));
-            return;
-        }
-        
-        try {
-            // Attempt OpenAI response
-            const completion = await openai.chat.completions.create({
-                model: "gpt-4",
-                messages: [
-                    {
-                        role: "system",
-                        content: `You are CoinWings' private aviation expert. Use Hemingway-like brevity: short sentences, simple words, active voice. Be friendly but direct.
-
-                        Focus on:
-                        - Route information
-                        - Aircraft recommendations
-                        - Approximate pricing
-                        - Next steps
-                        
-                        Use multiple-choice options for key questions. For example:
-                        
-                        "What type of aircraft are you interested in?
-                        • Light Jet (4-6 passengers)
-                        • Mid-size Jet (7-9 passengers)
-                        • Heavy Jet (10-16 passengers)"
-                        
-                        "Have you flown private before?
-                        • Yes, regularly
-                        • Yes, occasionally
-                        • No, first time"
-                        
-                        Ask about the client's country if not mentioned. This helps with aircraft options and regulations.
-                        
-                        Build rapport with lead-in questions:
-                        - Have they flown private before?
-                        - Would they like to know about crypto payment options?
-                        - What's most important in their travel experience?
-                        
-                        Only suggest connecting with our team after gathering substantial information. When appropriate, suggest they can connect with a specialist by replying with "yes".
-                        
-                        Current conversation context:
-                        ${conversation.getSummary() || "No specific details yet."}`
-                    },
-                    ...conversation.messages.slice(-5).map(m => ({
-                        role: m.role,
-                        content: m.text
-                    }))
-                ],
-                temperature: 0.7,
-                max_tokens: 500
-            });
-
-            const response = completion.choices[0].message.content;
-            await ctx.reply(response);
-            
-            // Add bot response to conversation
-            conversation.addMessage(response, 'assistant');
-            
-        } catch (aiError) {
-            console.error('OpenAI Error:', aiError);
-            
-            // Determine appropriate fallback response
-            let response = fallbackResponses.general;
-            const message = ctx.message.text.toLowerCase();
-            
-            if (message.includes('price') || message.includes('cost') || message.includes('how much')) {
-                response = fallbackResponses.pricing;
-            } else if (message.includes('process') || message.includes('how does') || message.includes('how do')) {
-                response = fallbackResponses.process;
-            }
-            
-            await ctx.reply(response);
-            
-            // Add fallback response to conversation
-            conversation.addMessage(response, 'assistant');
-        }
-        
     } catch (error) {
-        console.error('Error in message handler:', error);
-        await ctx.reply(fallbackResponses.general);
+        console.error('Error handling message:', error);
+        ctx.reply('Sorry, there was an error processing your request.');
     }
 });
 
-// Keep-alive server for Heroku
-const server = http.createServer((req, res) => {
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    res.end('CoinWings Bot is running!\n');
-});
-server.listen(process.env.PORT || 3000);
-console.log('Keep-alive server started on port', process.env.PORT || 3000);
-
 // Start bot
-bot.launch()
-    .then(() => {
-        console.log('CoinWings bot is running...');
-    })
-    .catch((err) => {
-        console.error('Error starting bot:', err);
-    });
+bot.launch();
 
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));

@@ -34,6 +34,11 @@ class Conversation {
     
     // User location
     this.country = null;
+    
+    // User name
+    this.firstName = null;
+    this.lastName = null;
+    this.askedName = false;
   }
 
   /**
@@ -78,6 +83,9 @@ class Conversation {
     
     // Check for country
     this.extractCountry(lowerText);
+    
+    // Check for name
+    this.extractName(text);
     
     // Check for detailed questions
     this.checkForDetailedQuestions(lowerText);
@@ -351,6 +359,51 @@ class Conversation {
   }
 
   /**
+   * Extract name from message
+   * @param {string} text - Message text (original case)
+   * @private
+   */
+  extractName(text) {
+    // Skip if we already have both first and last name
+    if (this.firstName && this.lastName) {
+      return;
+    }
+    
+    // Check for direct name responses
+    const namePatterns = [
+      // My name is pattern
+      /my name is (?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)/i,
+      // I am/I'm pattern
+      /I(?:'m| am) (?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)/i,
+      // Direct name response
+      /^(?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)$/i,
+      // Name: pattern
+      /name:? (?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)/i
+    ];
+    
+    for (const pattern of namePatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        this.firstName = match[1];
+        if (match[2]) {
+          this.lastName = match[2];
+        }
+        return;
+      }
+    }
+    
+    // Check for "call me" pattern
+    const callMeMatch = text.match(/(?:call|address) me(?: as)? (?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)/i);
+    if (callMeMatch && callMeMatch[1]) {
+      this.firstName = callMeMatch[1];
+      if (callMeMatch[2]) {
+        this.lastName = callMeMatch[2];
+      }
+      return;
+    }
+  }
+
+  /**
    * Get conversation data for lead scoring
    * @returns {Object} Conversation data for lead scoring
    */
@@ -377,6 +430,14 @@ class Conversation {
    */
   getSummary() {
     const parts = [];
+    
+    if (this.firstName) {
+      if (this.lastName) {
+        parts.push(`Name: ${this.firstName} ${this.lastName}`);
+      } else {
+        parts.push(`Name: ${this.firstName}`);
+      }
+    }
     
     if (this.origin && this.destination) {
       parts.push(`Route: ${this.origin} → ${this.destination}`);
