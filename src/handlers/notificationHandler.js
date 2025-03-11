@@ -27,47 +27,66 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     // Create a clean summary of the conversation
     let summary = '';
     
+    // Create a notification message
+    let message = `🤖 NEW LEAD - ${dateTimeStr}\n\n`;
+    
+    // Add contact info
+    message += `Contact: ${firstName} ${lastName} (@${username})\n\n`;
+    
+    // Add lead details section header
+    message += `Lead Details:\n`;
+    
     // Add route information
     if (conversation.origin && conversation.destination) {
-      summary += `Route: ${conversation.origin} to ${conversation.destination}\n`;
+      message += `🛫 Route: ${conversation.origin} to ${conversation.destination}\n`;
     } else if (conversation.origin) {
-      summary += `Origin: ${conversation.origin}\n`;
+      message += `🛫 Origin: ${conversation.origin}\n`;
     } else if (conversation.destination) {
-      summary += `Destination: ${conversation.destination}\n`;
+      message += `🛬 Destination: ${conversation.destination}\n`;
     }
     
     // Add passenger information
     if (conversation.pax) {
-      summary += `Passengers: ${conversation.pax}\n`;
+      message += `👥 Passengers: ${conversation.pax}\n`;
     }
     
     // Add date information
     if (conversation.exactDate) {
-      summary += `Date: ${conversation.exactDate}\n`;
+      message += `📅 Date: ${conversation.exactDate}\n`;
     } else if (conversation.dateRange) {
-      summary += `Date Range: ${conversation.dateRange.start} to ${conversation.dateRange.end}\n`;
+      message += `📅 Date Range: ${conversation.dateRange.start} to ${conversation.dateRange.end}\n`;
     }
     
     // Add aircraft information
     if (conversation.aircraftModel) {
-      summary += `Aircraft: ${conversation.aircraftModel}\n`;
+      message += `✈️ Aircraft: ${conversation.aircraftModel}\n`;
     } else if (conversation.aircraftCategory) {
-      summary += `Aircraft Category: ${conversation.aircraftCategory}\n`;
+      message += `✈️ Aircraft Category: ${conversation.aircraftCategory}\n`;
     }
     
     // Add country information
     if (conversation.country) {
-      summary += `Country: ${conversation.country}\n`;
+      message += `🌍 Country: ${conversation.country}\n`;
     }
     
-    // Add conversation history (last 5 messages)
-    summary += '\nConversation History:\n';
+    // Add additional information if available
+    if (conversation.flownPrivateBefore) {
+      message += `🔄 Flown Private Before: ${conversation.flownPrivateBefore}\n`;
+    }
+    
+    // Add notification reason if available
+    if (conversation.notificationReason) {
+      message += `📝 Reason for Handoff: ${conversation.notificationReason}\n`;
+    }
+    
+    // Add conversation history
+    message += `\nConversation History:\n`;
     const recentMessages = conversation.messages.slice(-10);
-    recentMessages.forEach(message => {
-      const role = message.role === 'user' ? '👤' : '🤖';
+    recentMessages.forEach(msg => {
+      const role = msg.role === 'user' ? '👤' : '🤖';
       // Truncate long messages
-      const text = message.text.length > 100 ? message.text.substring(0, 100) + '...' : message.text;
-      summary += `${role} ${text}\n`;
+      const text = msg.text.length > 100 ? msg.text.substring(0, 100) + '...' : msg.text;
+      message += `${role} ${text}\n`;
     });
     
     // Get current date and time
@@ -80,33 +99,44 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       hour12: true 
     });
     
-    // Create a notification message
-    let message = `🤖 NEW LEAD - ${dateTimeStr}\n\n`;
-    
-    // Add contact info
-    message += `Contact: ${firstName} ${lastName} (@${username})\n\n`;
-    
-    // Add lead details
-    message += `Lead Details:\n${summary}\n`;
-    
-    // Add additional information if available
-    if (conversation.flownPrivateBefore) {
-      message += `Flown Private Before: ${conversation.flownPrivateBefore}\n`;
-    }
-    
-    // Add notification reason if available
-    if (conversation.notificationReason) {
-      message += `Reason for Handoff: ${conversation.notificationReason}\n`;
-    }
-    
     // Add trigger type
-    message += `Trigger: ${triggerType === 'manual' ? 'User Requested' : (triggerType === 'test' ? 'Test' : 'AI Recommended')}\n`;
+    message += `\nTrigger: ${triggerType === 'manual' ? 'User Requested' : (triggerType === 'test' ? 'Test' : 'AI Recommended')}\n`;
     
     // Add reply link
     message += `\nReply to this user: https://t.me/${userData.username || `user?id=${userData.id}`}`;
     
     // Try to store lead in database
     try {
+      // Create a summary for database storage
+      let summaryText = '';
+      if (conversation.origin && conversation.destination) {
+        summaryText += `Route: ${conversation.origin} to ${conversation.destination}\n`;
+      } else if (conversation.origin) {
+        summaryText += `Origin: ${conversation.origin}\n`;
+      } else if (conversation.destination) {
+        summaryText += `Destination: ${conversation.destination}\n`;
+      }
+      
+      if (conversation.pax) {
+        summaryText += `Passengers: ${conversation.pax}\n`;
+      }
+      
+      if (conversation.exactDate) {
+        summaryText += `Date: ${conversation.exactDate}\n`;
+      } else if (conversation.dateRange) {
+        summaryText += `Date Range: ${conversation.dateRange.start} to ${conversation.dateRange.end}\n`;
+      }
+      
+      if (conversation.aircraftModel) {
+        summaryText += `Aircraft: ${conversation.aircraftModel}\n`;
+      } else if (conversation.aircraftCategory) {
+        summaryText += `Aircraft Category: ${conversation.aircraftCategory}\n`;
+      }
+      
+      if (conversation.country) {
+        summaryText += `Country: ${conversation.country}\n`;
+      }
+      
       const leadData = {
         userId: userData.id,
         username: userData.username || 'Anonymous',
@@ -114,7 +144,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         lastName: lastName,
         triggerType: triggerType,
         timestamp: new Date().toISOString(),
-        summary: summary,
+        summary: summaryText,
         conversation: conversation.messages,
         origin: conversation.origin,
         destination: conversation.destination,
