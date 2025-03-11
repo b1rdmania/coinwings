@@ -180,10 +180,18 @@ bot.command('faq', async (ctx) => {
     }
 });
 
-// Agent command
-bot.command('agent', async (ctx) => {
+/**
+ * Send notification to agent channel
+ * @param {Object} ctx - Telegram context
+ * @param {Object} conversation - User conversation
+ * @param {string} triggerType - What triggered the notification (auto/manual)
+ * @returns {Promise<boolean>} Success status
+ */
+async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     try {
-        const conversation = getConversation(ctx.from.id, ctx.from.username);
+        // Calculate lead score
+        const conversationData = conversation.getDataForScoring();
+        const leadScore = calculateLeadScore(conversationData);
         
         // Store lead in Firebase
         const leadData = {
@@ -194,8 +202,9 @@ bot.command('agent', async (ctx) => {
             date: conversation.exactDate || (conversation.dateRange ? `${conversation.dateRange.start} to ${conversation.dateRange.end}` : null),
             pax: conversation.pax,
             aircraft: conversation.aircraftModel || conversation.aircraftCategory,
-            score: calculateLeadScore(conversation.getDataForScoring()),
-            notes: conversation.getSummary()
+            score: leadScore,
+            notes: conversation.getSummary(),
+            triggerType: triggerType
         };
         
         const leadId = await storeLead(leadData);
@@ -218,29 +227,49 @@ bot.command('agent', async (ctx) => {
                 const agentMessage = `${priorityEmoji} **NEW LEAD**\n\n` +
                     `**Lead ID:** ${leadId}\n` +
                     `**User:** @${ctx.from.username}\n` +
-                    `**Score:** ${leadData.score}/100\n\n` +
+                    `**Score:** ${leadData.score}/100\n` +
+                    `**Trigger:** ${triggerType === 'auto' ? 'Automatic' : 'User requested'}\n\n` +
                     `**Details:**\n${summary || 'No specific details extracted'}\n\n` +
                     `**Recent Conversation:**\n${recentMessages}\n\n` +
                     `**Action Required:** Agent should contact @${ctx.from.username} directly.`;
                 
                 await bot.telegram.sendMessage(config.telegram.agentChannel, agentMessage, { parse_mode: 'Markdown' });
                 console.log(`Successfully sent notification to agent channel for lead ${leadId}`);
+                return true;
             } catch (channelError) {
                 console.error('Error sending to agent channel:', channelError.message);
                 console.error('Please ensure the bot is added as an admin to the channel with ID:', config.telegram.agentChannel);
-                // Continue execution - don't let channel errors affect the user experience
+                return false;
             }
         } else {
             console.warn('Agent channel not configured. Set AGENT_CHANNEL environment variable to enable notifications.');
+            return false;
         }
+    } catch (error) {
+        console.error('Error sending agent notification:', error);
+        return false;
+    }
+}
+
+// Agent command
+bot.command('agent', async (ctx) => {
+    try {
+        const conversation = getConversation(ctx.from.id, ctx.from.username);
+        
+        // Send notification to agent channel
+        const success = await sendAgentNotification(ctx, conversation, 'manual');
         
         // Reply to user
-        const replyMessage = `Thanks for your interest in CoinWings!\n\n` +
-            `One of our aviation specialists will contact you shortly to discuss your requirements in detail.\n\n` +
-            `In the meantime, feel free to ask any other questions you might have.`;
-        
-        await ctx.reply(replyMessage);
-        conversation.addMessage(replyMessage, 'bot');
+        if (success) {
+            const replyMessage = `Thanks for your interest in CoinWings!\n\n` +
+                `One of our aviation specialists will contact you shortly to discuss your requirements in detail.\n\n` +
+                `In the meantime, feel free to ask any other questions you might have.`;
+            
+            await ctx.reply(replyMessage);
+            conversation.addMessage(replyMessage, 'bot');
+        } else {
+            ctx.reply('Sorry, there was an error connecting you with an agent. Please try again later.');
+        }
     } catch (error) {
         console.error('Error in agent command:', error);
         ctx.reply('Sorry, there was an error connecting you with an agent. Please try again later.');
@@ -257,9 +286,8 @@ bot.command('help', async (ctx) => {
             `/aircraft - View aircraft options\n` +
             `/routes - View popular routes\n` +
             `/faq - Frequently asked questions\n` +
-            `/agent - Connect with an aviation specialist\n` +
             `/help - Show this help message\n\n` +
-            `You can also just chat naturally about your flight requirements!`;
+            `You can also just chat naturally about your flight requirements! When you're ready to book, I'll connect you with one of our aviation specialists.`;
         
         await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
         conversation.addMessage(helpMessage, 'bot');
@@ -282,8 +310,19 @@ bot.on('text', async (ctx) => {
         
         // Check if user requested agent
         if (conversation.handoffRequested) {
-            // Handle as agent request
-            await ctx.reply('I\'ll connect you with one of our aviation specialists. Please use the /agent command to submit your inquiry.');
+            // Automatically send to agent without requiring /agent command
+            const success = await sendAgentNotification(ctx, conversation, 'auto');
+            
+            if (success) {
+                await ctx.reply(
+                    `Thanks for your interest in CoinWings!\n\n` +
+                    `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+                    `In the meantime, feel free to ask any other questions you might have.`
+                );
+                conversation.handoffRequested = false; // Reset to prevent multiple notifications
+            } else {
+                await ctx.reply('I\'ll connect you with one of our aviation specialists. Please use the /agent command to submit your inquiry.');
+            }
             return;
         }
         
@@ -318,9 +357,37 @@ bot.on('text', async (ctx) => {
                 
                 await ctx.reply(
                     `Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability.\n\n` +
-                    `Would you like to speak with a specialist? If so, please use the /agent command.`
+                    `Would you like me to notify our team? Simply reply with "yes" or tell me more about your requirements.`
                 );
                 return;
+            }
+        }
+        
+        // Check for positive response to handoff suggestion
+        if (conversation.handoffSuggested && !conversation.handoffRequested) {
+            const lowerText = ctx.message.text.toLowerCase();
+            if (
+                lowerText === 'yes' || 
+                lowerText === 'yes please' || 
+                lowerText === 'sure' || 
+                lowerText === 'ok' || 
+                lowerText === 'okay' ||
+                lowerText.includes('connect') || 
+                lowerText.includes('speak') || 
+                lowerText.includes('talk to')
+            ) {
+                // Automatically send to agent
+                const success = await sendAgentNotification(ctx, conversation, 'auto');
+                
+                if (success) {
+                    await ctx.reply(
+                        `Thanks for your interest in CoinWings!\n\n` +
+                        `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+                        `In the meantime, feel free to ask any other questions you might have.`
+                    );
+                    conversation.handoffRequested = false; // Reset to prevent multiple notifications
+                    return;
+                }
             }
         }
         
@@ -344,7 +411,7 @@ bot.on('text', async (ctx) => {
                         - Would they like to understand how private jet travel typically works?
                         - What's most important to them in their travel experience?
                         
-                        Only suggest connecting with our aviation team using the /agent command after you've gathered substantial information and asked at least 2-3 lead-in questions.
+                        Only suggest connecting with our aviation team after you've gathered substantial information and asked at least 2-3 lead-in questions. When appropriate, suggest they can connect with a specialist by simply replying with "yes" to your suggestion.
                         
                         Current conversation context:
                         ${conversation.getSummary() || "No specific details yet."}`
