@@ -9,15 +9,64 @@ const openai = new OpenAI({
 /**
  * Generate a response using OpenAI
  * @param {Array} messages - Array of message objects with role and content
+ * @param {Object} conversation - Conversation object with state information
  * @returns {Promise<string>} - The generated response text
  */
-async function generateResponse(messages) {
+async function generateResponse(messages, conversation) {
   try {
     console.log('Attempting OpenAI response');
     
+    // Create a custom system prompt that includes conversation state
+    let systemPrompt = config.openai.systemPrompt;
+    
+    // Add conversation state if available
+    if (conversation) {
+      const providedInfo = conversation.getProvidedInformation();
+      const nextQuestion = conversation.getNextQuestion();
+      
+      // Add information about what we already know
+      systemPrompt += `\n\nCurrent conversation state:`;
+      
+      if (conversation.origin) {
+        systemPrompt += `\n- Origin: ${conversation.origin}`;
+      }
+      
+      if (conversation.destination) {
+        systemPrompt += `\n- Destination: ${conversation.destination}`;
+      }
+      
+      if (conversation.pax) {
+        systemPrompt += `\n- Passengers: ${conversation.pax}`;
+      }
+      
+      if (conversation.exactDate) {
+        systemPrompt += `\n- Travel date: ${conversation.exactDate}`;
+      } else if (conversation.dateRange) {
+        systemPrompt += `\n- Travel dates: ${conversation.dateRange.start} to ${conversation.dateRange.end}`;
+      } else if (conversation.mentionedTiming) {
+        systemPrompt += `\n- Approximate timing: ${conversation.mentionedTiming}`;
+      }
+      
+      if (conversation.aircraftModel) {
+        systemPrompt += `\n- Preferred aircraft: ${conversation.aircraftModel}`;
+      } else if (conversation.aircraftCategory) {
+        systemPrompt += `\n- Preferred aircraft category: ${conversation.aircraftCategory}`;
+      }
+      
+      // Add guidance on what to ask next
+      if (nextQuestion) {
+        systemPrompt += `\n\nNext question to ask: "${nextQuestion}"`;
+      } else {
+        systemPrompt += `\n\nAll essential information has been collected. Focus on providing helpful information about the journey.`;
+      }
+      
+      // Add important instruction to avoid asking for information we already have
+      systemPrompt += `\n\nIMPORTANT: DO NOT ask for information that has already been provided. Review the conversation state carefully.`;
+    }
+    
     // Prepend system message
     const fullMessages = [
-      { role: 'system', content: config.openai.systemPrompt },
+      { role: 'system', content: systemPrompt },
       ...messages
     ];
     

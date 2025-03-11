@@ -52,22 +52,20 @@ class Conversation {
    * @param {string} role - Message role (user/assistant)
    */
   addMessage(text, role = 'user') {
-    // Ensure role is compatible with OpenAI
-    if (role === 'bot') {
-      role = 'assistant';
-    }
-    
     this.messages.push({
       text,
       role,
-      timestamp: Date.now()
+      timestamp: new Date().toISOString()
     });
     
-    this.lastActivity = Date.now();
-    
-    // If it's a user message, analyze it
+    // If this is a user message, analyze it to extract information
     if (role === 'user') {
       this.analyzeMessage(text);
+    }
+    
+    // Trim conversation history if it gets too long
+    if (this.messages.length > 20) {
+      this.messages = this.messages.slice(-20);
     }
   }
 
@@ -531,6 +529,60 @@ class Conversation {
     }
     
     return details.length > 0 ? details.join('\n') : null;
+  }
+
+  /**
+   * Check if specific information has been provided
+   * @returns {Object} Object with flags for provided information
+   */
+  getProvidedInformation() {
+    return {
+      hasRoute: Boolean(this.origin && this.destination),
+      hasOrigin: Boolean(this.origin),
+      hasDestination: Boolean(this.destination),
+      hasPassengers: Boolean(this.pax),
+      hasDate: Boolean(this.exactDate || this.dateRange),
+      hasAircraft: Boolean(this.aircraftModel || this.aircraftCategory),
+      hasContact: Boolean(this.firstName && this.firstName !== 'Anonymous')
+    };
+  }
+
+  /**
+   * Get the next question to ask based on missing information
+   * @returns {string|null} Question to ask or null if all information is provided
+   */
+  getNextQuestion() {
+    const info = this.getProvidedInformation();
+    
+    if (!info.hasOrigin && !info.hasDestination) {
+      return "Could you please tell me your desired route, such as your origin and destination?";
+    }
+    
+    if (!info.hasOrigin) {
+      return "Could you please tell me your departure location?";
+    }
+    
+    if (!info.hasDestination) {
+      return "Could you please tell me your destination?";
+    }
+    
+    if (!info.hasPassengers) {
+      return "How many passengers will be traveling?";
+    }
+    
+    if (!info.hasDate) {
+      return "When are you planning to travel? This helps us check aircraft availability.";
+    }
+    
+    if (!info.hasAircraft) {
+      return "Do you have a preferred type of aircraft for this journey?";
+    }
+    
+    if (!info.hasContact) {
+      return "Would you be willing to share your name for a more personalized experience?";
+    }
+    
+    return null; // All essential information has been provided
   }
 }
 

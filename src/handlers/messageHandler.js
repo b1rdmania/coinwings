@@ -61,8 +61,8 @@ async function handleOpenAIResponse(ctx, conversation) {
       content: msg.text
     }));
     
-    // Generate response using OpenAI
-    const response = await openaiService.generateResponse(messages);
+    // Generate response using OpenAI with conversation context
+    const response = await openaiService.generateResponse(messages, conversation);
     
     console.log('Sending response to user:', response.substring(0, 50) + '...');
     await ctx.reply(response);
