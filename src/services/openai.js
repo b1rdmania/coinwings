@@ -73,6 +73,9 @@ async function generateResponse(messages, conversation) {
 - Have a leisurely conversation - don't rush to connect with an agent
 - Take time to collect information naturally through conversation
 - When asking for a name, be direct: "What's your name?" or "May I ask your name?"
+- Ask if they've flown private before: "Have you flown private before?" or "Is this your first time flying private?"
+- Ask what country they're based in: "Which country are you based in?" or "Where are you located?"
+- These additional questions (name, previous experience, country) are not mandatory but help personalize the experience
 - Only suggest connecting with an agent when the user explicitly asks or when you have all essential information
 - Share interesting facts about private jets to make the conversation engaging
 - When discussing pricing, provide realistic ranges based on aircraft type and route
@@ -85,6 +88,19 @@ async function generateResponse(messages, conversation) {
 - If someone asks about flying to the moon/mars/space, respond with humor but redirect to Earth destinations
 - If someone asks about "cheapest possible" flights, gently explain private jets aren't about being cheap
 - For teleportation/time travel jokes, respond with humor but redirect to real travel options`;
+
+      // Add educational information
+      systemPrompt += `\n\nEDUCATIONAL INFORMATION:
+- Offer to explain how private jets work: aircraft types, amenities, benefits, etc.
+- Explain how standby/empty leg flights work: discounted flights on repositioning aircraft
+- Discuss how pricing varies based on: aircraft size, distance, season, demand, etc.
+- Share popular routes: New York-Miami, London-Paris, Dubai-Maldives, Los Angeles-Las Vegas
+- Explain the booking process: quote, contract, payment, flight preparation
+- Discuss the benefits of private aviation: time savings, flexibility, privacy, comfort
+- Mention airport access: ability to use smaller, more convenient airports
+- Explain catering options: customized meals and beverages
+- Discuss luggage allowances: typically more generous than commercial flights
+- Share information about pet policies: most private jets welcome pets`;
 
       // Add pricing information
       systemPrompt += `\n\nPRICING GUIDELINES:
@@ -126,11 +142,23 @@ If asked to generate a summary, respond with a JSON object in the following form
   "date": "Travel date or date range",
   "aircraft": "Aircraft preference if mentioned",
   "name": "User's name if provided explicitly",
+  "country": "User's country if mentioned",
+  "flown_private_before": "Yes/No/Unknown if mentioned",
   "additional_details": "Any other relevant details",
   "fun_summary": "A short, fun summary with emojis about anything quirky or interesting (e.g., if they've flown private before, if it's for a special occasion, their personality, etc.)"
 }
 Only include fields where information has been clearly provided by the user. Do not include fields with uncertain or inferred information.
 For the fun_summary field, be creative and personable - this helps our agents connect with the client better.`;
+      
+      // Add agent channel formatting guidance
+      systemPrompt += `\n\nAGENT CHANNEL FORMATTING:
+When formatting conversation summaries for the agent channel:
+- Use 👤 emoji to represent the user
+- Use 🤖 emoji to represent the bot
+- Keep the conversation summary concise, not the entire conversation
+- Focus on key information exchanged, not every message
+- Highlight important details the user has shared
+- Format the summary in a clean, easy-to-read way`;
       
       // Important reminder
       systemPrompt += `\n\nIMPORTANT: Always maintain a friendly, helpful tone. Never pressure the user. Focus on providing accurate information and a great experience.`;
@@ -167,6 +195,14 @@ For the fun_summary field, be creative and personable - this helps our agents co
             name: {
               type: "string",
               description: "User's name if explicitly provided"
+            },
+            country: {
+              type: "string",
+              description: "User's country if mentioned"
+            },
+            flown_private_before: {
+              type: "string",
+              description: "Yes/No/Unknown if mentioned"
             },
             additional_details: {
               type: "string",
@@ -252,6 +288,12 @@ For the fun_summary field, be creative and personable - this helps our agents co
               if (nameParts.length > 1) {
                 conversation.lastName = nameParts.slice(1).join(" ");
               }
+            }
+            if (summaryData.country) {
+              conversation.country = summaryData.country;
+            }
+            if (summaryData.flown_private_before) {
+              conversation.flownPrivateBefore = summaryData.flown_private_before;
             }
             if (summaryData.additional_details) {
               conversation.additionalDetails = summaryData.additional_details;

@@ -65,10 +65,10 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     summary += '\nConversation History:\n';
     const recentMessages = conversation.messages.slice(-10);
     recentMessages.forEach(message => {
-      const role = message.role === 'user' ? 'User' : 'Bot';
+      const role = message.role === 'user' ? '👤' : '🤖';
       // Truncate long messages
       const text = message.text.length > 100 ? message.text.substring(0, 100) + '...' : message.text;
-      summary += `${role}: ${text}\n`;
+      summary += `${role} ${text}\n`;
     });
     
     // Format notification message
@@ -93,6 +93,11 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     
     // Add lead details
     message += `Lead Details:\n${summary}\n`;
+    
+    // Add additional information if available
+    if (conversation.flownPrivateBefore) {
+      message += `Flown Private Before: ${conversation.flownPrivateBefore}\n`;
+    }
     
     // Add lead score and trigger
     message += `Lead Score: ${score}/100 (${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority)\n`;
@@ -124,7 +129,8 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         pax: conversation.pax,
         date: conversation.exactDate || (conversation.dateRange ? `${conversation.dateRange.start} to ${conversation.dateRange.end}` : null),
         aircraft: conversation.aircraftModel || conversation.aircraftCategory,
-        funSummary: conversation.funSummary
+        funSummary: conversation.funSummary,
+        flownPrivateBefore: conversation.flownPrivateBefore
       };
       
       await storeLead(leadData);
@@ -181,4 +187,4 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
   }
 }
 
-module.exports = sendAgentNotification; 
+module.exports = sendAgentNotification;
