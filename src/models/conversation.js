@@ -12,6 +12,8 @@ class Conversation {
     this.username = username;
     this.messages = [];
     this.notificationSent = false;
+    this.shouldNotifyAgent = false;
+    this.notificationReason = null;
     this.createdAt = new Date();
     this.lastActivity = new Date();
     

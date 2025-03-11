@@ -138,8 +138,15 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     }
     
     // Send to agent channel
-    const channelId = config.telegram.agentChannel;
+    let channelId = config.telegram.agentChannel;
     console.log('🔍 NOTIFICATION DEBUG: Agent channel ID from config:', channelId);
+    
+    // Ensure channel ID is in the correct format
+    if (typeof channelId === 'string' && channelId.startsWith('-100')) {
+      // Convert to number if it's a string with -100 prefix (Telegram supergroup format)
+      channelId = parseInt(channelId, 10);
+      console.log('🔍 NOTIFICATION DEBUG: Converted channel ID to number:', channelId);
+    }
     
     if (!channelId) {
       console.error('❌ Agent channel not configured');
@@ -149,6 +156,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     console.log(`🔍 NOTIFICATION DEBUG: Attempting to send notification to channel ID: ${channelId}`);
     console.log(`🔍 NOTIFICATION DEBUG: Message length: ${message.length} characters`);
     
+    // Try sending with the primary channel ID
     try {
       const result = await ctx.telegram.sendMessage(channelId, message);
       console.log(`✅ Successfully sent notification to channel ${channelId}`);
@@ -159,7 +167,29 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       console.error('❌ Error sending notification:', error.message);
       console.error('🔍 NOTIFICATION DEBUG: Full error object:', JSON.stringify(error, null, 2));
       
-      // Try with a simpler message as a fallback
+      // Try alternative channel ID formats
+      const alternativeFormats = [
+        channelId.toString(),                   // Try as string
+        channelId.toString().replace('-100', '-'), // Try with -100 replaced by -
+        channelId.toString().replace('-', '-100')  // Try with - replaced by -100
+      ];
+      
+      // Try each alternative format
+      for (const altId of alternativeFormats) {
+        if (altId === channelId.toString()) continue; // Skip if same as original
+        
+        try {
+          console.log(`🔍 NOTIFICATION DEBUG: Trying alternative channel ID format: ${altId}`);
+          await ctx.telegram.sendMessage(altId, message);
+          console.log(`✅ Successfully sent notification using alternative format: ${altId}`);
+          conversation.notificationSent = true;
+          return true;
+        } catch (altError) {
+          console.error(`❌ Error with alternative format ${altId}:`, altError.message);
+        }
+      }
+      
+      // Try with a simpler message as a last resort
       try {
         console.log('🔍 NOTIFICATION DEBUG: Attempting to send simplified notification as fallback');
         const simpleMessage = `NEW LEAD - ${firstName} ${lastName} (@${username}) - Score: ${score}/100`;

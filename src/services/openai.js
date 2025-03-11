@@ -34,14 +34,14 @@ CONVERSATION GUIDELINES:
 - Write with Hemingway-like brevity. Short sentences. Clear words. No fluff.
 - Be direct and concise. Cut unnecessary words. Get to the point.
 
-HANDOFF INSTRUCTIONS:
-- When a user is ready to speak with a human specialist, use EXACTLY this phrase: "A specialist will be in touch with you shortly."
-- Only suggest connecting with a specialist when:
+AGENT NOTIFICATION:
+- When a user is ready to speak with a human specialist, call the notify_agent function
+- Only call this function when:
   1. The user explicitly asks to speak with someone
   2. The user has provided enough details about their trip (at minimum: route or destination)
   3. The user has shown clear intent to book or get a quote
-- When you use the handoff phrase, our system will automatically notify our team
-- Do NOT use similar phrases like "will be in touch soon" or "connect you with a specialist" - use the EXACT phrase
+- When you call this function, tell the user "A specialist will be in touch with you shortly"
+- Our system will automatically notify our team when you call this function
 
 EDUCATIONAL TOPICS:
 - How private jets work (aircraft types, amenities, benefits)
@@ -122,24 +122,64 @@ Remember to keep your responses conversational and natural. Don't use rigid form
       ...messages
     ];
     
+    // Define functions that OpenAI can call
+    const functions = [
+      {
+        name: "notify_agent",
+        description: "Notify a human agent about a user who needs assistance with their private jet inquiry",
+        parameters: {
+          type: "object",
+          properties: {
+            reason: {
+              type: "string",
+              description: "Brief reason why the user needs to be connected with an agent"
+            }
+          },
+          required: ["reason"]
+        }
+      }
+    ];
+    
     // Call the OpenAI API with retry logic
     let retries = 0;
     const maxRetries = 2;
     
     while (retries <= maxRetries) {
       try {
-        // Call the OpenAI API
+        // Call the OpenAI API with function calling
         const completion = await openai.chat.completions.create({
           model: config.openai.model,
           messages: openaiMessages,
           temperature: config.openai.temperature,
-          max_tokens: config.openai.maxTokens
+          max_tokens: config.openai.maxTokens,
+          functions: functions,
+          function_call: "auto"
         });
         
         // Get the response
         const responseMessage = completion.choices[0].message;
         
         console.log('OpenAI response received');
+        
+        // Check if OpenAI wants to call a function
+        if (responseMessage.function_call && responseMessage.function_call.name === "notify_agent") {
+          console.log('OpenAI requested to notify agent');
+          
+          try {
+            // Parse the function arguments
+            const functionArgs = JSON.parse(responseMessage.function_call.arguments);
+            
+            // Set a flag in the conversation to indicate that a notification should be sent
+            if (conversation) {
+              conversation.shouldNotifyAgent = true;
+              conversation.notificationReason = functionArgs.reason;
+              console.log(`OpenAI requested agent notification with reason: ${functionArgs.reason}`);
+            }
+          } catch (parseError) {
+            console.error('Error parsing function arguments:', parseError);
+          }
+        }
+        
         return responseMessage.content || "I'm sorry, I couldn't generate a response. How else can I help you today?";
       } catch (error) {
         retries++;
