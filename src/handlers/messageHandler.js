@@ -1,14 +1,13 @@
-const { getConversation } = require('../models/conversation');
-const { calculateLeadScore } = require('../utils/leadScoring');
+const { getConversation, removeConversation } = require('../models/conversation');
 const openaiService = require('../services/openai');
 const sendAgentNotification = require('./notificationHandler');
-const config = require('../config/config');
 
 /**
  * Register message handler for the bot
  * @param {Object} bot - Telegraf bot instance
  */
 function registerMessageHandler(bot) {
+  // Handle text messages
   bot.on('text', async (ctx) => {
     try {
       const userId = ctx.from.id;
@@ -27,22 +26,12 @@ function registerMessageHandler(bot) {
       // Add message to conversation history
       conversation.addMessage(messageText);
       
-      // Calculate lead score for logging purposes
-      const score = calculateLeadScore(conversation.getDataForScoring());
-      conversation.score = score;
-      console.log(`Lead score for ${username}: ${score}`);
-      
-      // Check if this is a handoff request
-      const isHandoffRequest = conversation.checkForHandoffRequest(messageText);
-      if (isHandoffRequest) {
-        console.log(`Handoff request detected: ${messageText}`);
-        conversation.handoffRequested = true;
+      // Check for reset command
+      if (messageText.toLowerCase() === '/reset') {
+        removeConversation(userId);
+        await ctx.reply('Conversation has been reset. How can I help you today?');
+        return;
       }
-      
-      // Check if this is a summary request
-      const isSummaryRequest = messageText.toLowerCase().includes('summary') || 
-                              messageText.toLowerCase().includes('recap') ||
-                              messageText.toLowerCase().includes('what did i tell you');
       
       // Generate response using OpenAI
       const response = await openaiService.generateResponse(
@@ -58,64 +47,25 @@ function registerMessageHandler(bot) {
       // Add bot response to conversation
       conversation.addMessage(response, 'assistant');
       
-      // If handoff was requested or the score is high enough, send notification to agent
-      // Only do this if we haven't already sent a notification for this conversation
-      if ((isHandoffRequest || conversation.handoffRequested) && !conversation.notificationSent) {
-        console.log(`Sending agent notification for user ${username}`);
+      // Check for explicit handoff request
+      const explicitHandoffRequest = 
+        messageText.toLowerCase().includes('connect me') || 
+        messageText.toLowerCase().includes('speak to agent') || 
+        messageText.toLowerCase().includes('talk to specialist') ||
+        messageText.toLowerCase().includes('connect with specialist') ||
+        messageText.toLowerCase() === 'connect please' ||
+        messageText.toLowerCase() === 'connect' ||
+        messageText.toLowerCase() === 'yes please' ||
+        (response.toLowerCase().includes('connect you with a specialist') && 
+         (messageText.toLowerCase() === 'yes' || messageText.toLowerCase() === 'ok' || 
+          messageText.toLowerCase() === 'sure' || messageText.toLowerCase() === 'all good'));
+      
+      // Send notification to agent if explicitly requested and not already sent
+      if (explicitHandoffRequest && !conversation.notificationSent) {
+        console.log(`Explicit handoff request detected, sending agent notification for user ${username}`);
         
         // Send notification to agent
         await sendAgentNotification(ctx, conversation, 'request');
-        
-        // Mark notification as sent
-        conversation.notificationSent = true;
-        
-        // Check if the OpenAI response already contains a confirmation about connecting with a specialist
-        const containsConfirmation = response.toLowerCase().includes('specialist') || 
-                                    response.toLowerCase().includes('connect you') ||
-                                    response.toLowerCase().includes('i\'ll connect you') ||
-                                    response.toLowerCase().includes('they\'ll be in touch');
-        
-        // Only send our confirmation message if the OpenAI response doesn't already include one
-        if (!containsConfirmation) {
-          const confirmationMessage = `Thanks for your interest in CoinWings! ✨
-
-I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.
-
-Feel free to ask any other questions while you wait.`;
-          
-          await ctx.reply(confirmationMessage, { parse_mode: 'Markdown' });
-          
-          // Add confirmation to conversation
-          conversation.addMessage(confirmationMessage, 'assistant');
-        } else {
-          console.log('OpenAI response already contains a confirmation message, skipping additional confirmation');
-        }
-      } else if (conversation.handoffRequested && conversation.notificationSent) {
-        // If we've already sent a notification and the user is asking about the status
-        const askingAboutStatus = messageText.toLowerCase().includes('connected') || 
-                                 messageText.toLowerCase().includes('status') ||
-                                 messageText.toLowerCase().includes('waiting') ||
-                                 messageText.toLowerCase().includes('agent') ||
-                                 messageText.toLowerCase().includes('specialist');
-        
-        if (askingAboutStatus) {
-          const statusMessage = `Yes, I've already notified our team about your request. A specialist will be in touch with you shortly. 
-
-This typically takes a few minutes during business hours. Thank you for your patience!`;
-          
-          await ctx.reply(statusMessage, { parse_mode: 'Markdown' });
-          
-          // Add status message to conversation
-          conversation.addMessage(statusMessage, 'assistant');
-        }
-      }
-      
-      // Check if score exceeds threshold for auto-escalation
-      if (score >= config.leadScoring.escalationThreshold && !conversation.notificationSent) {
-        console.log(`Score ${score} exceeds threshold ${config.leadScoring.escalationThreshold}, sending notification`);
-        
-        // Send notification to agent
-        await sendAgentNotification(ctx, conversation, 'score');
         
         // Mark notification as sent
         conversation.notificationSent = true;
