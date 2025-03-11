@@ -34,6 +34,17 @@ CONVERSATION GUIDELINES:
 - Write with Hemingway-like brevity. Short sentences. Clear words. No fluff.
 - Be direct and concise. Cut unnecessary words. Get to the point.
 
+INFORMATION TRACKING:
+- CAREFULLY track all information the user has already provided
+- NEVER ask for information they've already given you
+- If they mention a route (e.g., "London to New York"), remember both the origin and destination
+- If they mention a date (e.g., "May 1st"), remember it as their travel date
+- If they mention aircraft preferences, remember those exact preferences
+- When a user says they've already told you something, apologize sincerely and refer to your notes
+- Before asking for more details, review the conversation history to avoid repetition
+- If you're unsure if information was provided, phrase your question as "I may have missed this, but..."
+- When connecting users with specialists, summarize ALL the information they've provided so far
+
 AGENT NOTIFICATION:
 - When a user is ready to speak with a human specialist, call the notify_agent function
 - Only call this function when:
@@ -75,29 +86,52 @@ Remember to keep your responses conversational and natural. Don't use rigid form
         systemPrompt += `\n- IMPORTANT: Address the user by their name to create a personalized experience.`;
       }
       
-      // Add known information
-      if (conversation.origin) systemPrompt += `\n- Origin: ${conversation.origin}`;
-      if (conversation.destination) systemPrompt += `\n- Destination: ${conversation.destination}`;
-      if (conversation.pax) systemPrompt += `\n- Passengers: ${conversation.pax}`;
+      // Add route information with more context
+      if (conversation.origin && conversation.destination) {
+        systemPrompt += `\n- Route: ${conversation.origin} to ${conversation.destination}`;
+        systemPrompt += `\n- IMPORTANT: User has already provided their route. Do not ask for this information again.`;
+      } else if (conversation.origin) {
+        systemPrompt += `\n- Origin: ${conversation.origin}`;
+        systemPrompt += `\n- IMPORTANT: User has already provided their origin. Only ask for their destination if needed.`;
+      } else if (conversation.destination) {
+        systemPrompt += `\n- Destination: ${conversation.destination}`;
+        systemPrompt += `\n- IMPORTANT: User has already provided their destination. Only ask for their origin if needed.`;
+      }
       
+      // Add passenger information with more context
+      if (conversation.pax) {
+        systemPrompt += `\n- Passengers: ${conversation.pax}`;
+        systemPrompt += `\n- IMPORTANT: User has already provided passenger count. Do not ask for this information again.`;
+      }
+      
+      // Add date information with more context
       if (conversation.exactDate) {
         systemPrompt += `\n- Travel date: ${conversation.exactDate}`;
+        systemPrompt += `\n- IMPORTANT: User has already provided their travel date. Do not ask for this information again.`;
       } else if (conversation.dateRange) {
         systemPrompt += `\n- Travel dates: ${conversation.dateRange.start} to ${conversation.dateRange.end}`;
+        systemPrompt += `\n- IMPORTANT: User has already provided their travel date range. Do not ask for this information again.`;
       }
       
+      // Add aircraft information with more context
       if (conversation.aircraftModel) {
         systemPrompt += `\n- Preferred aircraft: ${conversation.aircraftModel}`;
+        systemPrompt += `\n- IMPORTANT: User has already specified their preferred aircraft. Do not ask for this information again.`;
       } else if (conversation.aircraftCategory) {
         systemPrompt += `\n- Preferred aircraft category: ${conversation.aircraftCategory}`;
+        systemPrompt += `\n- IMPORTANT: User has already specified their preferred aircraft category. Do not ask for this information again.`;
       }
       
+      // Add country information with more context
       if (conversation.country) {
         systemPrompt += `\n- Country: ${conversation.country}`;
+        systemPrompt += `\n- IMPORTANT: User has already provided their country. Do not ask for this information again.`;
       }
       
+      // Add previous experience information with more context
       if (conversation.flownPrivateBefore) {
         systemPrompt += `\n- Flown private before: ${conversation.flownPrivateBefore}`;
+        systemPrompt += `\n- IMPORTANT: User has already indicated whether they've flown private before. Do not ask for this information again.`;
       }
       
       // Add handoff status
