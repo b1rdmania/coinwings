@@ -35,12 +35,41 @@ function registerMessageHandler(bot) {
       const score = calculateLeadScore(conversation.getDataForScoring());
       console.log(`Lead score for ${username}: ${score}`);
       
-      // Check if we should escalate to agent (either by score or explicit request)
-      if (shouldEscalateToAgent(score) || isHandoffRequest) {
-        console.log(`Escalating to agent for user ${username} (score: ${score}, handoff requested: ${isHandoffRequest})`);
+      // Check if the last bot message suggested connecting with a specialist
+      let suggestedHandoff = false;
+      if (conversation.messages.length >= 2) {
+        const lastBotMessage = conversation.messages.slice().reverse().find(m => m.role === 'assistant');
+        if (lastBotMessage) {
+          const lastBotText = lastBotMessage.text.toLowerCase();
+          const suggestHandoffPatterns = [
+            'connect you with',
+            'connect with our',
+            'connect with a specialist',
+            'arrange this for you',
+            'would you like me to',
+            'would you like to speak',
+            'would you like to connect'
+          ];
+          
+          for (const pattern of suggestHandoffPatterns) {
+            if (lastBotText.includes(pattern)) {
+              suggestedHandoff = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Check if we should escalate to agent (either by score, explicit request, or affirmative response to suggestion)
+      const shouldEscalate = shouldEscalateToAgent(score) || 
+                            isHandoffRequest || 
+                            (suggestedHandoff && /^(yes|sure|ok|okay|definitely|absolutely|of course|please do|go ahead)$/i.test(messageText.trim()));
+      
+      if (shouldEscalate) {
+        console.log(`Escalating to agent for user ${username} (score: ${score}, handoff requested: ${isHandoffRequest}, response to suggestion: ${suggestedHandoff})`);
         
         // Send notification to agent channel
-        await sendAgentNotification(ctx, conversation, isHandoffRequest ? 'manual' : 'auto');
+        await sendAgentNotification(ctx, conversation, isHandoffRequest || suggestedHandoff ? 'manual' : 'auto');
         
         // Get conversation summary
         const summary = conversation.getSummary();
