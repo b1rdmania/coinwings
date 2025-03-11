@@ -1,5 +1,4 @@
 const config = require('../config/config');
-const { calculateLeadScore, getLeadPriority } = require('../utils/leadScoring');
 const { storeLead } = require('../services/firebase');
 
 /**
@@ -18,15 +17,12 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     const userData = ctx.from;
     console.log('🔍 NOTIFICATION DEBUG: User data:', JSON.stringify(userData, null, 2));
     
-    const score = calculateLeadScore(conversation.getDataForScoring());
-    const priority = getLeadPriority(score);
-    
     // Use the name from the conversation object if available
     const firstName = conversation.firstName || userData.first_name || 'Anonymous';
     const lastName = conversation.lastName || userData.last_name || '';
     const username = userData.username || `ID: ${userData.id}`;
     
-    console.log(`🔍 NOTIFICATION DEBUG: Preparing notification for user ${username} with score ${score}`);
+    console.log(`🔍 NOTIFICATION DEBUG: Preparing notification for user ${username}`);
     
     // Create a clean summary of the conversation
     let summary = '';
@@ -74,10 +70,6 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       summary += `${role} ${text}\n`;
     });
     
-    // Format notification message
-    const triggerEmoji = triggerType === 'manual' ? '👤' : '🤖';
-    const priorityEmoji = priority === 'high' ? '🔴' : (priority === 'medium' ? '🟠' : '🟢');
-    
     // Get current date and time
     const now = new Date();
     const dateTimeStr = now.toLocaleString('en-US', { 
@@ -89,7 +81,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     });
     
     // Create a notification message
-    let message = `${triggerEmoji} ${priorityEmoji} NEW LEAD (${score}/100) - ${dateTimeStr}\n\n`;
+    let message = `🤖 NEW LEAD - ${dateTimeStr}\n\n`;
     
     // Add contact info
     message += `Contact: ${firstName} ${lastName} (@${username})\n\n`;
@@ -102,9 +94,13 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       message += `Flown Private Before: ${conversation.flownPrivateBefore}\n`;
     }
     
-    // Add lead score and trigger
-    message += `Lead Score: ${score}/100 (${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority)\n`;
-    message += `Trigger: ${triggerType === 'manual' ? 'User Requested' : 'Auto-escalated'}\n`;
+    // Add notification reason if available
+    if (conversation.notificationReason) {
+      message += `Reason for Handoff: ${conversation.notificationReason}\n`;
+    }
+    
+    // Add trigger type
+    message += `Trigger: ${triggerType === 'manual' ? 'User Requested' : (triggerType === 'test' ? 'Test' : 'AI Recommended')}\n`;
     
     // Add reply link
     message += `\nReply to this user: https://t.me/${userData.username || `user?id=${userData.id}`}`;
@@ -116,8 +112,6 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         username: userData.username || 'Anonymous',
         firstName: firstName,
         lastName: lastName,
-        score: score,
-        priority: priority,
         triggerType: triggerType,
         timestamp: new Date().toISOString(),
         summary: summary,
@@ -127,7 +121,8 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         pax: conversation.pax,
         date: conversation.exactDate || (conversation.dateRange ? `${conversation.dateRange.start} to ${conversation.dateRange.end}` : null),
         aircraft: conversation.aircraftModel || conversation.aircraftCategory,
-        flownPrivateBefore: conversation.flownPrivateBefore
+        flownPrivateBefore: conversation.flownPrivateBefore,
+        notificationReason: conversation.notificationReason
       };
       
       await storeLead(leadData);
@@ -192,7 +187,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       // Try with a simpler message as a last resort
       try {
         console.log('🔍 NOTIFICATION DEBUG: Attempting to send simplified notification as fallback');
-        const simpleMessage = `NEW LEAD - ${firstName} ${lastName} (@${username}) - Score: ${score}/100`;
+        const simpleMessage = `NEW LEAD - ${firstName} ${lastName} (@${username})`;
         await ctx.telegram.sendMessage(channelId, simpleMessage);
         console.log('✅ Successfully sent simplified notification');
         conversation.notificationSent = true;
