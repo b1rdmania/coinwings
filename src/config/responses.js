@@ -3,7 +3,7 @@
  */
 const responses = {
   welcome_message: {
-    trigger: ["start", "hello", "hi"],
+    trigger: ["/start", "hello coinwings", "hi coinwings"],
     response: "Hey there, welcome to CoinWings. 🚀 Looking for a private jet? I can walk you through how it works, what to consider, and get you an estimate if needed. No pressure, just here to help. ✈️"
   },
 
@@ -41,16 +41,33 @@ const responses = {
 /**
  * Find a matching response for the given text
  * @param {string} text - User message text
+ * @param {Object} conversation - Conversation object
  * @returns {string|null} Matching response or null if no match
  */
-function findMatchingResponse(text) {
+function findMatchingResponse(text, conversation) {
   if (!text) return null;
   
   const lowerText = text.toLowerCase().trim();
   
+  // Don't use predefined responses if the conversation has more than 3 messages
+  // This prevents the welcome message from being sent repeatedly
+  if (conversation && conversation.messages.length > 3) {
+    // For welcome message triggers, only respond if it's one of the first messages
+    if (responses.welcome_message.trigger.some(trigger => lowerText.includes(trigger))) {
+      return null;
+    }
+  }
+  
   for (const [key, responseObj] of Object.entries(responses)) {
     for (const trigger of responseObj.trigger) {
-      if (lowerText.includes(trigger)) {
+      // For welcome message, only match if it's an exact match or very close
+      if (key === 'welcome_message') {
+        if (lowerText === trigger || lowerText === trigger + '!') {
+          return responseObj.response;
+        }
+      } 
+      // For other responses, use includes for more flexible matching
+      else if (lowerText.includes(trigger)) {
         return responseObj.response;
       }
     }

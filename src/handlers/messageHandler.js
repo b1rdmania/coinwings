@@ -118,7 +118,7 @@ Feel free to ask any other questions while you wait.`;
       }
       
       // Check for predefined responses
-      const predefinedResponse = findMatchingResponse(messageText);
+      const predefinedResponse = findMatchingResponse(messageText, conversation);
       if (predefinedResponse) {
         console.log(`Using predefined response for: ${messageText}`);
         

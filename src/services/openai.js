@@ -56,6 +56,14 @@ async function generateResponse(messages, conversation) {
         systemPrompt += `\n\nEssential information has been collected. Consider suggesting connecting with a specialist for an exact quote.`;
       }
       
+      // Add guidance to avoid repetition
+      if (conversation.messages.length >= 2) {
+        const lastBotMessage = conversation.messages.slice().reverse().find(m => m.role === 'assistant');
+        if (lastBotMessage) {
+          systemPrompt += `\n\nIMPORTANT: Your last message was: "${lastBotMessage.text.substring(0, 100)}...". DO NOT repeat this message. Provide a new, helpful response.`;
+        }
+      }
+      
       // Important reminder
       systemPrompt += `\n\nIMPORTANT: DO NOT ask for information that has already been provided.`;
     }
