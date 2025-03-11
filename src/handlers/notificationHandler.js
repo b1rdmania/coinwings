@@ -20,225 +20,101 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     // Use the name from the conversation object if available
     const firstName = conversation.firstName || userData.first_name || 'Anonymous';
     const lastName = conversation.lastName || userData.last_name || '';
-    const username = userData.username || `ID: ${userData.id}`;
+    const username = conversation.username || userData.username || 'no_username';
+    const userId = conversation.telegramId || userData.id;
     
     console.log(`🔍 NOTIFICATION DEBUG: Preparing notification for user ${username}`);
     
-    // Get current date and time
-    const now = new Date();
-    const dateTimeStr = now.toLocaleString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
+    // Create a unique lead ID
+    const leadId = `lead_${Date.now()}_${Math.floor(Math.random() * 10)}`;
     
-    // Create a notification message
-    let message = `🤖 NEW LEAD - ${dateTimeStr}\n\n`;
+    // Store lead data in database
+    const leadData = {
+      id: leadId,
+      userId: userId,
+      username: username,
+      firstName: firstName,
+      lastName: lastName,
+      timestamp: new Date().toISOString(),
+      origin: conversation.origin || null,
+      destination: conversation.destination || null,
+      date: conversation.exactDate || null,
+      pax: conversation.pax || null,
+      aircraft: conversation.aircraftModel || conversation.aircraftCategory || null,
+      reason: conversation.notificationReason || 'Not specified',
+      status: 'new',
+      messages: conversation.messages.slice(-10) // Last 10 messages
+    };
     
-    // Add contact info
-    message += `Contact: ${firstName} ${lastName} (@${username})\n\n`;
+    // Store lead in database
+    await storeLead(leadData);
+    console.log(`Lead ${leadId} stored successfully`);
+    console.log('🔍 NOTIFICATION DEBUG: Lead data stored in database');
     
-    // Add lead details section header
-    message += `Lead Details:\n`;
-    
-    // Add route information
-    if (conversation.origin && conversation.destination) {
-      message += `🛫 Route: ${conversation.origin} to ${conversation.destination}\n`;
-    } else if (conversation.origin) {
-      message += `🛫 Origin: ${conversation.origin}\n`;
-    } else if (conversation.destination) {
-      message += `🛬 Destination: ${conversation.destination}\n`;
-    }
-    
-    // Add passenger information
-    if (conversation.pax) {
-      message += `👥 Passengers: ${conversation.pax}\n`;
-    }
-    
-    // Add date information
-    if (conversation.exactDate) {
-      message += `📅 Date: ${conversation.exactDate}\n`;
-    } else if (conversation.dateRange) {
-      message += `📅 Date Range: ${conversation.dateRange.start} to ${conversation.dateRange.end}\n`;
-    }
-    
-    // Add aircraft information
-    if (conversation.aircraftModel) {
-      message += `✈️ Aircraft: ${conversation.aircraftModel}\n`;
-    } else if (conversation.aircraftCategory) {
-      message += `✈️ Aircraft Category: ${conversation.aircraftCategory}\n`;
-    }
-    
-    // Add country information
-    if (conversation.country) {
-      message += `🌍 Country: ${conversation.country}\n`;
-    }
-    
-    // Add additional information if available
-    if (conversation.flownPrivateBefore) {
-      message += `🔄 Flown Private Before: ${conversation.flownPrivateBefore}\n`;
-    }
-    
-    // Add notification reason if available
-    if (conversation.notificationReason) {
-      message += `📝 Reason for Handoff: ${conversation.notificationReason}\n`;
-    }
-    
-    // Add conversation history
-    message += `\nConversation History:\n`;
-    const recentMessages = conversation.messages.slice(-10);
-    recentMessages.forEach(msg => {
-      const role = msg.role === 'user' ? '👤' : '🤖';
-      // Truncate long messages
-      const text = msg.text.length > 100 ? msg.text.substring(0, 100) + '...' : msg.text;
-      message += `${role} ${text}\n`;
-    });
-    
-    // Add trigger type
-    message += `\nTrigger: ${triggerType === 'manual' ? 'User Requested' : (triggerType === 'test' ? 'Test' : 'AI Recommended')}\n`;
-    
-    // Add reply link
-    if (userData.username) {
-      message += `\nReply to this user: https://t.me/${userData.username}`;
-    } else if (userData.id) {
-      message += `\nReply to this user: https://t.me/user?id=${userData.id}`;
-    }
-    
-    // Try to store lead in database
-    try {
-      // Create a summary for database storage
-      let summaryText = '';
-      if (conversation.origin && conversation.destination) {
-        summaryText += `Route: ${conversation.origin} to ${conversation.destination}\n`;
-      } else if (conversation.origin) {
-        summaryText += `Origin: ${conversation.origin}\n`;
-      } else if (conversation.destination) {
-        summaryText += `Destination: ${conversation.destination}\n`;
-      }
-      
-      if (conversation.pax) {
-        summaryText += `Passengers: ${conversation.pax}\n`;
-      }
-      
-      if (conversation.exactDate) {
-        summaryText += `Date: ${conversation.exactDate}\n`;
-      } else if (conversation.dateRange) {
-        summaryText += `Date Range: ${conversation.dateRange.start} to ${conversation.dateRange.end}\n`;
-      }
-      
-      if (conversation.aircraftModel) {
-        summaryText += `Aircraft: ${conversation.aircraftModel}\n`;
-      } else if (conversation.aircraftCategory) {
-        summaryText += `Aircraft Category: ${conversation.aircraftCategory}\n`;
-      }
-      
-      if (conversation.country) {
-        summaryText += `Country: ${conversation.country}\n`;
-      }
-      
-      const leadData = {
-        userId: userData.id,
-        username: userData.username || 'Anonymous',
-        firstName: firstName,
-        lastName: lastName,
-        triggerType: triggerType,
-        timestamp: new Date().toISOString(),
-        summary: summaryText,
-        conversation: conversation.messages,
-        origin: conversation.origin,
-        destination: conversation.destination,
-        pax: conversation.pax,
-        date: conversation.exactDate || (conversation.dateRange ? `${conversation.dateRange.start} to ${conversation.dateRange.end}` : null),
-        aircraft: conversation.aircraftModel || conversation.aircraftCategory,
-        flownPrivateBefore: conversation.flownPrivateBefore,
-        notificationReason: conversation.notificationReason
-      };
-      
-      await storeLead(leadData);
-      console.log('🔍 NOTIFICATION DEBUG: Lead data stored in database');
-    } catch (dbError) {
-      console.error('🔍 NOTIFICATION DEBUG: Error storing lead in database:', dbError);
-      // Continue with notification even if database storage fails
-    }
-    
-    // Send to agent channel
-    let channelId = config.telegram.agentChannel;
+    // Get agent channel ID from config
+    const channelId = config.telegram.agentChannel;
     console.log('🔍 NOTIFICATION DEBUG: Agent channel ID from config:', channelId);
     
-    // Ensure channel ID is in the correct format
-    if (typeof channelId === 'string' && channelId.startsWith('-100')) {
-      // Convert to number if it's a string with -100 prefix (Telegram supergroup format)
-      channelId = parseInt(channelId, 10);
-      console.log('🔍 NOTIFICATION DEBUG: Converted channel ID to number:', channelId);
+    // Convert channel ID to number if it's a string
+    const numericChannelId = typeof channelId === 'string' ? parseInt(channelId, 10) : channelId;
+    console.log('🔍 NOTIFICATION DEBUG: Converted channel ID to number:', numericChannelId);
+    
+    // Format the notification message
+    let recentMessages = '';
+    const lastMessages = conversation.messages.slice(-10).reverse(); // Get last 10 messages in reverse order
+    
+    for (let i = 0; i < lastMessages.length; i++) {
+      const msg = lastMessages[i];
+      const icon = msg.role === 'user' ? '👤' : '🤖';
+      // Truncate long messages
+      const text = msg.text.length > 100 ? msg.text.substring(0, 97) + '...' : msg.text;
+      recentMessages += `${icon} ${text}\n`;
     }
     
-    if (!channelId) {
-      console.error('❌ Agent channel not configured');
-      return false;
-    }
+    // Create a direct reply link using the user's ID
+    const replyLink = userId ? `https://t.me/user?id=${userId}` : `https://t.me/${username}`;
     
-    console.log(`🔍 NOTIFICATION DEBUG: Attempting to send notification to channel ID: ${channelId}`);
+    // Format the notification message
+    const message = `🤖 NEW LEAD - ${new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+
+Contact: ${firstName} ${lastName}${username ? ` (@${username})` : ''}
+
+Lead Details:
+${conversation.origin && conversation.destination ? `🛫 Route: ${conversation.origin} to ${conversation.destination}` : ''}
+${conversation.pax ? `👥 Passengers: ${conversation.pax}` : ''}
+${conversation.exactDate ? `📅 Date: ${conversation.exactDate}` : ''}
+${conversation.aircraftModel || conversation.aircraftCategory ? `✈️ Aircraft: ${conversation.aircraftModel || conversation.aircraftCategory}` : ''}
+📝 Reason for Handoff: ${conversation.notificationReason || 'Not specified'}
+
+Conversation History:
+${recentMessages}
+Trigger: ${triggerType === 'request' ? 'User Requested' : 'AI Recommended'}
+
+Reply to this user: ${replyLink}`;
+
+    console.log(`🔍 NOTIFICATION DEBUG: Attempting to send notification to channel ID: ${numericChannelId}`);
     console.log(`🔍 NOTIFICATION DEBUG: Message length: ${message.length} characters`);
     
-    // Try sending with the primary channel ID
-    try {
-      const result = await ctx.telegram.sendMessage(channelId, message);
-      console.log(`✅ Successfully sent notification to channel ${channelId}`);
-      console.log('🔍 NOTIFICATION DEBUG: Telegram API response:', JSON.stringify(result, null, 2));
-      conversation.notificationSent = true;
-      return true;
-    } catch (error) {
-      console.error('❌ Error sending notification:', error.message);
-      console.error('🔍 NOTIFICATION DEBUG: Full error object:', JSON.stringify(error, null, 2));
-      
-      // Try alternative channel ID formats
-      const alternativeFormats = [
-        channelId.toString(),                   // Try as string
-        channelId.toString().replace('-100', '-'), // Try with -100 replaced by -
-        channelId.toString().replace('-', '-100')  // Try with - replaced by -100
-      ];
-      
-      // Try each alternative format
-      for (const altId of alternativeFormats) {
-        if (altId === channelId.toString()) continue; // Skip if same as original
-        
-        try {
-          console.log(`🔍 NOTIFICATION DEBUG: Trying alternative channel ID format: ${altId}`);
-          await ctx.telegram.sendMessage(altId, message);
-          console.log(`✅ Successfully sent notification using alternative format: ${altId}`);
-          conversation.notificationSent = true;
-          return true;
-        } catch (altError) {
-          console.error(`❌ Error with alternative format ${altId}:`, altError.message);
-        }
-      }
-      
-      // Try with a simpler message as a last resort
-      try {
-        console.log('🔍 NOTIFICATION DEBUG: Attempting to send simplified notification as fallback');
-        const simpleMessage = `NEW LEAD - ${firstName} ${lastName} (@${username})`;
-        await ctx.telegram.sendMessage(channelId, simpleMessage);
-        console.log('✅ Successfully sent simplified notification');
-        conversation.notificationSent = true;
-        return true;
-      } catch (fallbackError) {
-        console.error('❌ Error sending simplified notification:', fallbackError.message);
-        // Mark as sent anyway to prevent repeated attempts
-        conversation.notificationSent = true;
-        return false;
-      }
-    }
+    // Send notification to agent channel
+    const result = await ctx.telegram.sendMessage(numericChannelId, message);
+    console.log(`✅ Successfully sent notification to channel ${numericChannelId}`);
+    console.log('🔍 NOTIFICATION DEBUG: Telegram API response:', JSON.stringify(result, null, 2));
+    
+    return true;
   } catch (error) {
-    console.error('Error in notification process:', error);
-    console.error('🔍 NOTIFICATION DEBUG: Stack trace:', error.stack);
-    // Mark as sent to prevent repeated attempts
-    if (conversation) {
-      conversation.notificationSent = true;
+    console.error('❌ Error sending agent notification:', error);
+    
+    // Try to notify the user that there was an issue
+    try {
+      await ctx.reply("I'm having trouble connecting you with our team. Please try again in a few moments or contact us directly at support@coinwings.io");
+    } catch (replyError) {
+      console.error('Failed to send error message to user:', replyError);
     }
+    
     return false;
   }
 }
 
-module.exports = sendAgentNotification;
+module.exports = {
+  sendAgentNotification
+};

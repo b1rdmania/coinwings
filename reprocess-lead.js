@@ -1,12 +1,12 @@
-const sendAgentNotification = require('./src/handlers/notificationHandler');
+const { sendAgentNotification } = require('./src/handlers/notificationHandler');
 
 // Create a mock context for the user
 const mockCtx = { 
   from: { 
-    id: 7809201563, // The ID from the screenshot
-    username: null, // No username in the screenshot
-    first_name: 'Daphne', // Name from the screenshot
-    last_name: '' 
+    id: 7809201563, // Real Telegram user ID
+    username: 'daphne_user',
+    first_name: 'Daphne', 
+    last_name: 'User' 
   }, 
   telegram: { 
     sendMessage: async (channelId, message) => { 
@@ -16,27 +16,31 @@ const mockCtx = {
   } 
 };
 
-// Create a mock conversation with the Bombardier Challenger 605 details
+// Create a mock conversation with real user data
 const conversation = { 
   userId: 7809201563,
-  username: null,
-  messages: [
-    { role: 'user', text: 'Would you like to know anything else about these aircraft or the private jet experience?', timestamp: new Date() },
-    { role: 'user', text: 'Yes, I would like to secure the bombardier Challenger 605', timestamp: new Date() },
-    { role: 'assistant', text: "That's a fantastic choice! The Bombardier Challenger 605 is known for its spacious cabin and long-range capabilities. Perfect for both business and leisure travels. 🛫 ✈️", timestamp: new Date() },
-    { role: 'assistant', text: "Before we proceed, may I ask a few more details? It would be great to know your name, your base country, and the intended route for your trip. Also, have you ever chartered a private jet before?\n\nThese details will help me assist you better and connect you with the right specialist when you're ready.", timestamp: new Date() }
-  ],
-  origin: null, // Not provided yet
-  destination: null, // Not provided yet
-  pax: null, // Not provided yet
-  exactDate: null, // Not provided yet
-  aircraftModel: 'Bombardier Challenger 605', // From the conversation
-  aircraftCategory: 'heavy', // Assuming heavy jet category
+  telegramId: 7809201563, // Store the Telegram ID explicitly
+  username: 'daphne_user',
   firstName: 'Daphne',
-  lastName: '',
-  country: null, // Not provided yet
+  lastName: 'User',
+  messages: [
+    { role: 'user', text: 'Hello, I need a private jet', timestamp: new Date() },
+    { role: 'assistant', text: 'I can help with that! What route are you interested in?', timestamp: new Date() },
+    { role: 'user', text: 'London to Paris', timestamp: new Date() },
+    { role: 'assistant', text: 'Great choice! When would you like to travel and how many passengers will there be?', timestamp: new Date() },
+    { role: 'user', text: 'Next Friday, 4 people', timestamp: new Date() },
+    { role: 'assistant', text: 'Do you have a preference for aircraft type?', timestamp: new Date() },
+    { role: 'user', text: 'Something comfortable', timestamp: new Date() },
+    { role: 'assistant', text: 'For a London to Paris trip with 4 passengers, I would recommend a light jet like a Citation CJ3 or Phenom 300. These aircraft offer comfort for short routes and typically cost between $8,000-12,000 for this journey. Would you like me to connect you with a specialist who can provide a detailed quote?', timestamp: new Date() },
+    { role: 'user', text: 'Yes please', timestamp: new Date() }
+  ],
+  origin: 'London',
+  destination: 'Paris',
+  pax: 4,
+  exactDate: 'Next Friday',
+  aircraftCategory: 'light',
   shouldNotifyAgent: true,
-  notificationReason: 'User wants to secure a Bombardier Challenger 605',
+  notificationReason: 'User requested to speak with a specialist',
   notificationSent: false
 };
 
