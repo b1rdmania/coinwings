@@ -64,6 +64,14 @@ async function generateResponse(messages, conversation) {
         }
       }
       
+      // Add formatting guidance
+      systemPrompt += `\n\nFORMATTING GUIDELINES:
+- Use Telegram's Markdown formatting: *bold* for emphasis (not **bold**)
+- Use single asterisks for bold text: *important text*
+- Avoid using double asterisks as they won't render correctly
+- Use emojis for visual appeal
+- Keep paragraphs short and use line breaks for readability`;
+      
       // Important reminder
       systemPrompt += `\n\nIMPORTANT: DO NOT ask for information that has already been provided.`;
     }

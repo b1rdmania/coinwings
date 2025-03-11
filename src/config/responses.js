@@ -19,12 +19,12 @@ const responses = {
 
   crypto_payments: {
     trigger: ["do you accept crypto", "pay with btc", "payment options", "crypto", "bitcoin", "ethereum"],
-    response: "✅ We accept **BTC, ETH, USDC**, and other major cryptocurrencies. \n✅ No unnecessary KYC—just smooth, secure transactions."
+    response: "✅ We accept *BTC, ETH, USDC*, and other major cryptocurrencies. \n✅ No unnecessary KYC—just smooth, secure transactions."
   },
 
   lead_capture: {
     trigger: ["i want to book", "get me a jet", "send to agent", "book now", "charter"],
-    response: "Great! Let's get the details:\n- 🛩 **From:** [Enter city/airport]\n- 📍 **To:** [Enter destination]\n- 📅 **Date:** [Enter date]\n- 👥 **Passengers:** [Enter number]\n- 💰 **Crypto payment? (Yes/No)**\n\nI'll pass this over to an agent once you confirm."
+    response: "Great! Let's get the details:\n- 🛩 *From:* [Enter city/airport]\n- 📍 *To:* [Enter destination]\n- 📅 *Date:* [Enter date]\n- 👥 *Passengers:* [Enter number]\n- 💰 *Crypto payment? (Yes/No)*\n\nI'll pass this over to an agent once you confirm."
   },
 
   agent_handoff: {
@@ -34,7 +34,7 @@ const responses = {
 
   faq: {
     trigger: ["tips", "advice", "how to fly private", "suggestions", "recommendations"],
-    response: "Some quick tips for private jet travel: \n💡 **Book flexibly:** Empty legs can save you 50%+.\n💡 **Aircraft matters:** A Light Jet = cost-effective, Heavy Jet = ultimate comfort.\n💡 **Crypto is fast:** But **confirm USDC availability** in advance for smooth payments.\n💡 **Flight times:** Private jets need slots too—best book early for busy routes.\n\nNeed more advice? Happy to help."
+    response: "Some quick tips for private jet travel: \n💡 *Book flexibly:* Empty legs can save you 50%+.\n💡 *Aircraft matters:* A Light Jet = cost-effective, Heavy Jet = ultimate comfort.\n💡 *Crypto is fast:* But *confirm USDC availability* in advance for smooth payments.\n💡 *Flight times:* Private jets need slots too—best book early for busy routes.\n\nNeed more advice? Happy to help."
   }
 };
 

@@ -74,7 +74,7 @@ function registerMessageHandler(bot) {
       // Handle humor for time-wasters
       if (isJokeOrTimeWaster(messageText)) {
         const humorResponse = generateHumorResponse(messageText);
-        await ctx.reply(humorResponse);
+        await ctx.reply(humorResponse, { parse_mode: 'Markdown' });
         conversation.addMessage(humorResponse, 'assistant');
         return;
       }
@@ -110,7 +110,7 @@ ${formatSummary(summary || 'Your flight inquiry')}
 
 Feel free to ask any other questions while you wait.`;
         
-        await ctx.reply(confirmationMessage);
+        await ctx.reply(confirmationMessage, { parse_mode: 'Markdown' });
         
         // Add confirmation to conversation
         conversation.addMessage(confirmationMessage, 'assistant');
@@ -135,7 +135,8 @@ Feel free to ask any other questions while you wait.`;
             .replace('{payment}', 'Yes'); // Default to Yes for crypto payment
         }
         
-        await ctx.reply(formattedResponse);
+        // Send with Markdown parse mode for formatting
+        await ctx.reply(formattedResponse, { parse_mode: 'Markdown' });
         conversation.addMessage(formattedResponse, 'assistant');
         return;
       }
@@ -206,19 +207,19 @@ function generateHumorResponse(text) {
   
   if (/can (my|a) (dog|cat|pet) fly (alone|by (itself|himself|herself))/i.test(lowerText) || 
       /send (my|a) (dog|cat|pet) on a jet/i.test(lowerText)) {
-    return "Technically, yes. But I doubt your pet has a crypto wallet for payment. 🐶💳\n\nJokes aside, we do accommodate pets with their owners! Many clients bring their furry friends along.";
+    return "Technically, yes. But I doubt your pet has a crypto wallet for payment. 🐶��\n\nJokes aside, we *do* accommodate pets with their owners! Many clients bring their furry friends along.";
   }
   
   if (/fly (me|us) to (the moon|mars|space)/i.test(lowerText)) {
-    return "Our jets are impressive, but not quite that impressive! 🚀🌙\n\nFor now, we're limited to Earth-based destinations. Where were you actually thinking of traveling?";
+    return "Our jets are impressive, but not quite *that* impressive! 🚀🌙\n\nFor now, we're limited to Earth-based destinations. Where were you actually thinking of traveling?";
   }
   
   if (/cheapest possible/i.test(lowerText) || /free flight/i.test(lowerText)) {
-    return "The words 'cheapest' and 'private jet' don't usually appear in the same sentence! 😄\n\nBut we do work to find the most cost-effective options for your specific needs. What's your route?";
+    return "The words 'cheapest' and 'private jet' don't usually appear in the same sentence! 😄\n\nBut we *do* work to find the most cost-effective options for your specific needs. What's your route?";
   }
   
   if (/teleport/i.test(lowerText) || /time travel/i.test(lowerText)) {
-    return "Our jets are fast, but teleportation is still in beta testing! ⚡\n\nIn the meantime, we can get you there almost as quickly with a private jet. Where are you looking to travel?";
+    return "Our jets are fast, but teleportation is still in beta testing! ⚡\n\nIn the meantime, we can get you there *almost* as quickly with a private jet. Where are you looking to travel?";
   }
   
   return "That's an interesting request! While I can't help with that specifically, I can definitely assist with private jet charters to real-world destinations. What were you actually looking to arrange?";
@@ -242,7 +243,9 @@ async function handleOpenAIResponse(ctx, conversation) {
     const response = await openaiService.generateResponse(messages, conversation);
     
     console.log('Sending response to user:', response.substring(0, 50) + '...');
-    await ctx.reply(response);
+    
+    // Send with Markdown parse mode for formatting
+    await ctx.reply(response, { parse_mode: 'Markdown' });
     
     // Add bot response to conversation
     conversation.addMessage(response, 'assistant');
