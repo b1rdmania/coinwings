@@ -100,7 +100,11 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     message += `\nTrigger: ${triggerType === 'manual' ? 'User Requested' : (triggerType === 'test' ? 'Test' : 'AI Recommended')}\n`;
     
     // Add reply link
-    message += `\nReply to this user: https://t.me/${userData.username || `user?id=${userData.id}`}`;
+    if (userData.username) {
+      message += `\nReply to this user: https://t.me/${userData.username}`;
+    } else if (userData.id) {
+      message += `\nReply to this user: https://t.me/user?id=${userData.id}`;
+    }
     
     // Try to store lead in database
     try {
