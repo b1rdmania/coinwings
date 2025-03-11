@@ -643,16 +643,28 @@ bot.on('text', async (ctx) => {
     }
 });
 
-// Start bot
-bot.launch();
-
 // Keep-alive server for Heroku
 const server = http.createServer((req, res) => {
     res.writeHead(200, {'Content-Type': 'text/plain'});
     res.end('CoinWings Bot is running!\n');
 });
-server.listen(process.env.PORT || 3000);
-console.log('Keep-alive server started on port', process.env.PORT || 3000);
+
+// Set up webhook
+const PORT = process.env.PORT || 3000;
+server.listen(PORT);
+console.log('Server started on port', PORT);
+
+// Start bot with webhook
+bot.launch({
+    webhook: {
+        domain: 'https://coinwings-app-adaf631c80ba.herokuapp.com',
+        port: PORT
+    }
+}).then(() => {
+    console.log('CoinWings bot is running with webhook...');
+}).catch((err) => {
+    console.error('Error starting bot:', err);
+});
 
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
