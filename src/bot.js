@@ -327,30 +327,37 @@ bot.command('help', async (ctx) => {
 // Message handling with fallback responses
 bot.on('text', async (ctx) => {
     try {
-        console.log('Received message:', ctx.message.text);
+        console.log('Received message:', ctx.message.text, 'from user:', ctx.from.username || ctx.from.id);
         
         // Get or create conversation
         const conversation = getConversation(ctx.from.id, ctx.from.username);
+        console.log('Conversation retrieved for user:', ctx.from.username || ctx.from.id);
         
         // Add user message to conversation
         conversation.addMessage(ctx.message.text);
+        console.log('Message added to conversation');
         
         // Handle "I prefer not to say" response for name
         if (ctx.message.text === 'I prefer not to say' && conversation.askedName && !conversation.firstName) {
+            console.log('User prefers not to provide name');
             conversation.firstName = 'Anonymous';
             await ctx.reply(`No problem! How can I help you today?`);
+            console.log('Sent anonymous response');
             return;
         }
         
         // Check if we should ask for name early in the conversation
         if (!conversation.firstName && !conversation.askedName && conversation.messages.length <= 3) {
+            console.log('Asking for name early in conversation');
             conversation.askedName = true;
             await ctx.reply(`What's your name? This helps us personalize your experience.`, createKeyboardOptions('name_response'));
+            console.log('Sent name request');
             return;
         }
         
         // If this is the first message after asking for name, try to extract name
         if (conversation.askedName && !conversation.firstName && conversation.messages.length >= 2) {
+            console.log('Trying to extract name from message');
             // The extractName method will be called in analyzeMessage, but let's check if it worked
             if (!conversation.firstName) {
                 // Try to extract name directly from this message
@@ -358,7 +365,9 @@ bot.on('text', async (ctx) => {
                 
                 // If we got a name, acknowledge it
                 if (conversation.firstName && conversation.firstName !== 'Anonymous') {
+                    console.log('Name extracted:', conversation.firstName);
                     await ctx.reply(`Thanks, ${conversation.firstName}! How can I help you with private aviation today?`);
+                    console.log('Sent name acknowledgement');
                     return;
                 }
             }
@@ -366,10 +375,12 @@ bot.on('text', async (ctx) => {
         
         // Check if user requested agent
         if (conversation.handoffRequested) {
+            console.log('User requested agent handoff');
             // Automatically send to agent without requiring /agent command
             const success = await sendAgentNotification(ctx, conversation, 'auto');
             
             if (success) {
+                console.log('Agent notification sent successfully');
                 await ctx.reply(
                     `Thanks for your interest in CoinWings!\n\n` +
                     `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
@@ -378,6 +389,7 @@ bot.on('text', async (ctx) => {
                 );
                 conversation.handoffRequested = false; // Reset to prevent multiple notifications
             } else {
+                console.log('Failed to send agent notification');
                 await ctx.reply('I\'ll connect you with one of our aviation specialists. Please use the /agent command to submit your inquiry.');
             }
             return;
@@ -541,6 +553,89 @@ bot.on('text', async (ctx) => {
                 await ctx.reply(response, { parse_mode: 'Markdown' });
                 return;
             }
+        }
+        
+        try {
+            // Attempt OpenAI response
+            console.log('Attempting OpenAI response');
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4",
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are CoinWings' private aviation expert. Use Hemingway-like brevity: short sentences, simple words, active voice. Be friendly but direct.
+
+                        ${conversation.firstName && conversation.firstName !== 'Anonymous' ? `Address the user by their name: ${conversation.firstName}` : ''}
+
+                        Focus on:
+                        - Route information
+                        - Aircraft recommendations
+                        - Approximate pricing
+                        - Next steps
+                        
+                        Use multiple-choice options for key questions. For example:
+                        
+                        "What type of aircraft are you interested in?
+                        • Light Jet (4-6 passengers)
+                        • Mid-size Jet (7-9 passengers)
+                        • Heavy Jet (10-16 passengers)"
+                        
+                        "Have you flown private before?
+                        • Yes, regularly
+                        • Yes, occasionally
+                        • No, first time"
+                        
+                        Ask about the client's country if not mentioned. This helps with aircraft options and regulations.
+                        
+                        Build rapport with lead-in questions:
+                        - Have they flown private before?
+                        - Would they like to know about crypto payment options?
+                        - What's most important in their travel experience?
+                        
+                        Only suggest connecting with our team after gathering substantial information. When appropriate, suggest they can connect with a specialist by replying with "yes".
+                        
+                        Current conversation context:
+                        ${conversation.getSummary() || "No specific details yet."}`
+                    },
+                    ...conversation.messages.slice(-5).map(m => ({
+                        role: m.role,
+                        content: m.text
+                    }))
+                ],
+                temperature: 0.7,
+                max_tokens: 500
+            });
+            console.log('OpenAI response received');
+
+            const response = completion.choices[0].message.content;
+            console.log('Sending response to user:', response.substring(0, 50) + '...');
+            await ctx.reply(response);
+            console.log('Response sent to user');
+            
+            // Add bot response to conversation
+            conversation.addMessage(response, 'assistant');
+            console.log('Response added to conversation');
+            
+        } catch (aiError) {
+            console.error('OpenAI Error:', aiError);
+            
+            // Determine appropriate fallback response
+            let response = fallbackResponses.general;
+            const message = ctx.message.text.toLowerCase();
+            
+            if (message.includes('price') || message.includes('cost') || message.includes('how much')) {
+                response = fallbackResponses.pricing;
+            } else if (message.includes('process') || message.includes('how does') || message.includes('how do')) {
+                response = fallbackResponses.process;
+            }
+            
+            console.log('Sending fallback response:', response.substring(0, 50) + '...');
+            await ctx.reply(response);
+            console.log('Fallback response sent');
+            
+            // Add fallback response to conversation
+            conversation.addMessage(response, 'assistant');
+            console.log('Fallback response added to conversation');
         }
     } catch (error) {
         console.error('Error handling message:', error);
