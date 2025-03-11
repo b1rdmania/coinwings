@@ -5,6 +5,7 @@ const OpenAI = require('openai');
 const { getConversation } = require('./models/conversation');
 const { calculateLeadScore, shouldEscalateToAgent, getLeadPriority } = require('./utils/leadScoring');
 const { getAircraftInfo, getRouteInfo, getFAQ, storeLead } = require('./services/firebase');
+const http = require('http');
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -102,7 +103,7 @@ bot.command('aircraft', async (ctx) => {
         
         await ctx.reply(message, { parse_mode: 'Markdown' });
         conversation.addMessage(message, 'bot');
-   } catch (error) {
+    } catch (error) {
         console.error('Error in aircraft command:', error);
         ctx.reply('Sorry, there was an error retrieving aircraft information.');
     }
@@ -251,7 +252,7 @@ bot.command('help', async (ctx) => {
 
 // Message handling with fallback responses
 bot.on('text', async (ctx) => {
-   try {
+    try {
         console.log('Received message:', ctx.message.text);
         
         // Get or create conversation
@@ -335,11 +336,19 @@ bot.on('text', async (ctx) => {
             conversation.addMessage(response, 'assistant');
         }
         
-   } catch (error) {
+    } catch (error) {
         console.error('Error in message handler:', error);
         await ctx.reply(fallbackResponses.general);
     }
 });
+
+// Keep-alive server for Heroku
+const server = http.createServer((req, res) => {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    res.end('CoinWings Bot is running!\n');
+});
+server.listen(process.env.PORT || 3000);
+console.log('Keep-alive server started on port', process.env.PORT || 3000);
 
 // Start bot
 bot.launch()
@@ -353,26 +362,3 @@ bot.launch()
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
-// Keep-alive server for Heroku
-const http = require('http');
-const server = http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('CoinWings Bot is running!\n');
-});
-server.listen(process.env.PORT || 3000);
-
-// Keep-alive server for Heroku
-const http = require('http');
-const server = http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('CoinWings Bot is running!\n');
-});
-server.listen(process.env.PORT || 3000);
-
-// Keep-alive server for Heroku
-const http = require('http');
-const server = http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('CoinWings Bot is running!\n');
-});
-server.listen(process.env.PORT || 3000);
