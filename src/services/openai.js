@@ -56,9 +56,21 @@ async function generateResponse(messages, conversation) {
       // Add guidance on what to ask next
       if (nextQuestion) {
         systemPrompt += `\n\nNext question to ask: "${nextQuestion}"`;
+      } else if (conversation.origin && conversation.destination && conversation.pax) {
+        // If we have the essential information, suggest connecting with an agent
+        systemPrompt += `\n\nEssential information has been collected. Consider suggesting connecting with a specialist for an exact quote, but only if the conversation naturally leads to it. Don't be pushy.`;
       } else {
-        systemPrompt += `\n\nAll essential information has been collected. Focus on providing helpful information about the journey.`;
+        systemPrompt += `\n\nFocus on providing helpful information about private jet chartering while naturally gathering missing details.`;
       }
+      
+      // Add formatting instructions
+      systemPrompt += `\n\nFORMATTING GUIDELINES:
+- Use emoji to highlight key points (✈️ for routes, 📅 for dates, 👥 for passengers, 💰 for pricing)
+- Format lists with emoji bullet points
+- Bold important information using **bold text**
+- Break up text into readable chunks with line breaks
+- When providing pricing ranges, format them clearly: **$X,XXX - $Y,YYY**
+- Keep responses concise and easy to read on a mobile device`;
       
       // Add important instruction to avoid asking for information we already have
       systemPrompt += `\n\nIMPORTANT: DO NOT ask for information that has already been provided. Review the conversation state carefully.`;
@@ -95,11 +107,61 @@ function generateFallbackResponse(query) {
   const lowerQuery = query.toLowerCase();
   
   if (lowerQuery.includes('price') || lowerQuery.includes('cost') || lowerQuery.includes('how much')) {
-    return "Private jet pricing depends on several factors including distance, aircraft type, and travel dates. For example, a light jet for a short trip might start around $15,000, while international flights on heavy jets can exceed $50,000. To provide an accurate quote, I'll need your specific route, dates, and passenger count.";
+    return `💡 Private jet pricing varies based on:
+- ✈️ Aircraft type and size
+- 📏 Flight distance
+- 📅 Seasonality and availability
+- 🏢 Airport fees and handling
+
+For example:
+- 🛩 **Light Jet**: $4,000-5,500 per hour
+- ✈️ **Mid-size Jet**: $5,500-7,000 per hour
+- 🚀 **Heavy Jet**: $8,000-12,000 per hour
+
+If you'd like a more specific estimate, just let me know your route and passenger count. No pressure! 🙂`;
   }
   
   if (lowerQuery.includes('process') || lowerQuery.includes('how does it work') || lowerQuery.includes('booking')) {
-    return "Our booking process is simple: 1) Share your trip details (route, dates, passengers), 2) We'll provide aircraft options and pricing, 3) Our aviation team will handle all arrangements, 4) Pay with crypto or traditional methods, 5) Enjoy your private flight! Would you like to start by telling me about your trip?";
+    return `📋 **Booking with CoinWings is simple:**
+
+1️⃣ Share your trip details (route, dates, passengers)
+2️⃣ We provide aircraft options and pricing ranges
+3️⃣ Our aviation team handles all arrangements
+4️⃣ Pay with crypto (BTC, ETH, USDC) or traditional methods
+5️⃣ Enjoy your private flight!
+
+Would you like to start by telling me about your trip? Or just exploring options for now? Either way is perfectly fine. 👍`;
+  }
+  
+  if (lowerQuery.includes('aircraft') || lowerQuery.includes('jet') || lowerQuery.includes('plane')) {
+    return `✈️ **Private Aircraft Categories:**
+
+- 🛩 **Light Jets** (4-6 passengers)
+  Perfect for shorter trips (2-3 hours)
+  Examples: Citation CJ3, Phenom 300
+
+- ✈️ **Mid-size Jets** (7-9 passengers)
+  Great for domestic flights (4-5 hours)
+  Examples: Citation XLS, Learjet 60
+
+- �� **Heavy Jets** (10-16 passengers)
+  Ideal for international travel (6+ hours)
+  Examples: Gulfstream G550, Falcon 7X
+
+What type of trip are you considering? I can help recommend the right aircraft. 🙂`;
+  }
+  
+  if (lowerQuery.includes('crypto') || lowerQuery.includes('payment') || lowerQuery.includes('bitcoin') || lowerQuery.includes('eth')) {
+    return `💰 **Crypto Payments at CoinWings:**
+
+We accept:
+- ₿ Bitcoin (BTC)
+- Ξ Ethereum (ETH)
+- 💵 USDC
+
+The payment process is simple and secure. Once you confirm your booking, we provide wallet addresses for payment. After transaction confirmation, your flight is secured.
+
+We also accept traditional payment methods if you prefer. Would you like more information about our payment process?`;
   }
   
   // Default fallback

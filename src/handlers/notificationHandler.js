@@ -46,7 +46,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     if (config.telegram.agentChannel) {
       try {
         console.log(`Attempting to send notification to channel: ${config.telegram.agentChannel}`);
-        await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText);
+        await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText, { parse_mode: 'Markdown' });
         console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
         return true;
       } catch (channelError) {
@@ -57,7 +57,8 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
           if (process.env.ADMIN_USER_ID) {
             console.log(`Attempting to send notification to admin: ${process.env.ADMIN_USER_ID}`);
             await ctx.telegram.sendMessage(process.env.ADMIN_USER_ID, 
-              `⚠️ Failed to send to agent channel. Here's the notification:\n\n${notificationText}`);
+              `⚠️ Failed to send to agent channel. Here's the notification:\n\n${notificationText}`, 
+              { parse_mode: 'Markdown' });
             console.log('Notification sent to admin as fallback');
             return true;
           }
@@ -92,13 +93,43 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
  * @returns {string} Formatted notification message
  */
 function formatNotificationMessage(userData, score, summary, priorityEmoji, triggerEmoji) {
-  return `${triggerEmoji} ${priorityEmoji} NEW LEAD (${score}/100)
+  // Format the summary with emoji
+  let formattedSummary = summary || 'No detailed information provided';
+  
+  // Add emoji to common patterns in summary
+  formattedSummary = formattedSummary
+    .replace(/Route:/gi, '✈️ Route:')
+    .replace(/Origin:/gi, '🛫 Origin:')
+    .replace(/Destination:/gi, '🛬 Destination:')
+    .replace(/Passengers:/gi, '👥 Passengers:')
+    .replace(/Date:/gi, '📅 Date:')
+    .replace(/Dates:/gi, '📅 Dates:')
+    .replace(/Aircraft:/gi, '🛩 Aircraft:')
+    .replace(/Special requests:/gi, '✨ Special requests:')
+    .replace(/Payment:/gi, '💰 Payment:');
+  
+  // Get current date and time
+  const now = new Date();
+  const dateTimeStr = now.toLocaleString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    hour: '2-digit', 
+    minute: '2-digit',
+    hour12: true 
+  });
+  
+  // Create a more structured notification
+  return `${triggerEmoji} ${priorityEmoji} *NEW LEAD (${score}/100)* - ${dateTimeStr}
     
-From: ${userData.first_name || ''} ${userData.last_name || ''} (@${userData.username || 'no username'})
+*Contact:* ${userData.first_name || ''} ${userData.last_name || ''} ${userData.username ? `(@${userData.username})` : '(no username)'}
 
-${summary}
+*Lead Details:*
+${formattedSummary}
 
-Reply to this user: https://t.me/${userData.username}`;
+*Lead Score:* ${score}/100 (${priorityEmoji} ${score >= 70 ? 'High' : (score >= 31 ? 'Medium' : 'Low')} Priority)
+*Trigger:* ${triggerEmoji} ${triggerEmoji === '👤' ? 'User Requested' : 'Auto-escalated'}
+
+*Reply to this user:* https://t.me/${userData.username || `user?id=${userData.id}`}`;
 }
 
 module.exports = sendAgentNotification; 
