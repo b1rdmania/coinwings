@@ -1,8 +1,6 @@
 const config = require('../config/config');
 const { calculateLeadScore, getLeadPriority } = require('../utils/leadScoring');
 const { storeLead } = require('../services/firebase');
-const db = require('../services/database');
-const telegram = require('../services/telegram');
 
 /**
  * Send notification to agent channel about a potential lead
@@ -173,55 +171,4 @@ Trigger: ${triggerType === 'manual' ? 'User Requested' : 'Auto-escalated'}`;
   return message;
 }
 
-async function sendLeadNotification(conversation, triggerType) {
-  try {
-    // Get user data
-    const userData = {
-      id: conversation.userId,
-      username: conversation.username || 'Unknown',
-      first_name: conversation.firstName || 'Anonymous',
-      last_name: conversation.lastName || ''
-    };
-    
-    // Get conversation summary
-    const summary = conversation.getSummary();
-    
-    // Format notification message
-    const message = `🚨 *New Lead Alert* 🚨\n\n` +
-                    `*Score:* ${conversation.score}\n` +
-                    `*Priority:* ${conversation.score >= config.escalation.highPriorityThreshold ? 'HIGH' : 'Normal'}\n` +
-                    `*Trigger:* ${triggerType}\n\n` +
-                    `${summary}`;
-    
-    // Add fun summary if available
-    const funSummaryMessage = conversation.funSummary ? 
-      `\n\n👤 *Quick Note:* ${conversation.funSummary}` : '';
-    
-    // Store lead in database
-    await db.storeLeadData({
-      userId: userData.id,
-      username: userData.username,
-      firstName: userData.first_name,
-      lastName: userData.last_name,
-      score: conversation.score,
-      priority: conversation.score >= config.escalation.highPriorityThreshold ? 'HIGH' : 'Normal',
-      triggerType: triggerType,
-      summary: summary,
-      conversation: conversation.messages,
-      funSummary: conversation.funSummary
-    });
-    
-    // Send notification to all admin users
-    const adminUsers = await db.getAdminUsers();
-    for (const adminUser of adminUsers) {
-      await telegram.sendMessage(adminUser.userId, message + funSummaryMessage, { parse_mode: 'Markdown' });
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error sending lead notification:', error);
-    return false;
-  }
-}
-
-module.exports = { sendAgentNotification, sendLeadNotification }; 
+module.exports = sendAgentNotification; 

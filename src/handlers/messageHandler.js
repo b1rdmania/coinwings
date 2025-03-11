@@ -1,7 +1,7 @@
 const { getConversation } = require('../models/conversation');
 const { calculateLeadScore, shouldEscalateToAgent } = require('../utils/leadScoring');
 const openaiService = require('../services/openai');
-const { sendAgentNotification, sendLeadNotification } = require('./notificationHandler');
+const sendAgentNotification = require('./notificationHandler');
 const config = require('../config/config');
 const { findMatchingResponse } = require('../config/responses');
 
@@ -103,7 +103,7 @@ function registerMessageHandler(bot) {
         
         // Send notification to agent channel if not already sent
         if (!conversation.notificationSent) {
-          await sendLeadNotification(conversation, isHandoffRequest || suggestedHandoff ? 'manual' : 'auto');
+          await sendAgentNotification(ctx, conversation, isHandoffRequest || suggestedHandoff ? 'manual' : 'auto');
           conversation.notificationSent = true;
         } else {
           console.log(`Notification already sent for user ${username}, skipping`);
@@ -278,7 +278,7 @@ async function handleOpenAIResponse(ctx, conversation) {
       console.log('Bot response indicates specialist contact, sending notification to agent channel');
       
       // Send notification to agent channel
-      await sendLeadNotification(conversation, 'auto');
+      await sendAgentNotification(ctx, conversation, 'auto');
       
       // Mark notification as sent to prevent duplicate notifications
       conversation.notificationSent = true;
@@ -289,7 +289,7 @@ async function handleOpenAIResponse(ctx, conversation) {
       console.log(`Score ${conversation.score} exceeds threshold ${config.escalation.escalationThreshold}, sending notification`);
       
       // Send notification to agents
-      await sendLeadNotification(conversation, 'score');
+      await sendAgentNotification(ctx, conversation, 'score');
       
       // Mark notification as sent
       conversation.notificationSent = true;
