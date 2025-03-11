@@ -57,7 +57,7 @@ When you have enough information (route, passengers, dates), suggest connecting 
     
     // Lead scoring thresholds
     leadScoring: {
-        escalationThreshold: 70,
+        escalationThreshold: 85,
         priorities: {
             low: { min: 0, max: 30 },
             medium: { min: 31, max: 69 },

@@ -72,6 +72,30 @@ async function generateResponse(messages, conversation) {
 - Use emojis for visual appeal
 - Keep paragraphs short and use line breaks for readability`;
       
+      // Add conversation guidance
+      systemPrompt += `\n\nCONVERSATION GUIDELINES:
+- Most users are new to private jets - offer educational information about private jets when relevant
+- Always provide pricing in USD ($) first, then optionally in crypto
+- Have a leisurely conversation - don't rush to connect with an agent
+- Take time to collect information, ask for their name, offer tips and pricing when asked
+- Only suggest connecting with an agent when the user explicitly asks or when you have all essential information
+- Share interesting facts about private jets to make the conversation engaging
+- When discussing pricing, provide realistic ranges based on aircraft type and route
+- Remember that users enjoy getting a feel for pricing even if they're just exploring`;
+      
+      // Add pricing information
+      systemPrompt += `\n\nPRICING GUIDELINES:
+- Light Jets (4-6 passengers): $4,000-5,500 per hour, typically $15,000-25,000 for short routes
+- Mid-size Jets (7-9 passengers): $5,500-7,000 per hour, typically $25,000-40,000 for medium routes
+- Heavy Jets (10-16 passengers): $8,000-12,000 per hour, typically $40,000-80,000 for long routes
+
+Common route pricing examples:
+- New York to Miami: $18,000-22,000 (Light Jet), $25,000-30,000 (Mid-size), $35,000-45,000 (Heavy)
+- London to Dubai: $45,000-55,000 (Mid-size), $65,000-80,000 (Heavy)
+- San Francisco to Austin: $25,000-30,000 (Light Jet), $32,000-38,000 (Mid-size), $45,000-55,000 (Heavy)
+
+Always emphasize that these are estimates and final pricing depends on specific aircraft availability, exact dates, and other factors.`;
+      
       // Important reminder
       systemPrompt += `\n\nIMPORTANT: DO NOT ask for information that has already been provided.`;
     }
