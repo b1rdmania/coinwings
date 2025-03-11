@@ -368,3 +368,11 @@ const server = http.createServer((req, res) => {
   res.end('CoinWings Bot is running!\n');
 });
 server.listen(process.env.PORT || 3000);
+
+// Keep-alive server for Heroku
+const http = require('http');
+const server = http.createServer((req, res) => {
+  res.writeHead(200, {'Content-Type': 'text/plain'});
+  res.end('CoinWings Bot is running!\n');
+});
+server.listen(process.env.PORT || 3000);
