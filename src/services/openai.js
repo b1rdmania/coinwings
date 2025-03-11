@@ -48,14 +48,6 @@ async function generateResponse(messages, conversation) {
         systemPrompt += `\n- Preferred aircraft category: ${conversation.aircraftCategory}`;
       }
       
-      // Add guidance on what to ask next
-      const nextQuestion = conversation.getNextQuestion();
-      if (nextQuestion) {
-        systemPrompt += `\n\nNext question to ask: "${nextQuestion}"`;
-      } else if (conversation.origin && conversation.destination && conversation.pax) {
-        systemPrompt += `\n\nEssential information has been collected. Consider suggesting connecting with a specialist for an exact quote.`;
-      }
-      
       // Add guidance to avoid repetition
       if (conversation.messages.length >= 2) {
         const lastBotMessage = conversation.messages.slice().reverse().find(m => m.role === 'assistant');
@@ -74,7 +66,7 @@ async function generateResponse(messages, conversation) {
       
       // Add conversation guidance
       systemPrompt += `\n\nCONVERSATION GUIDELINES:
-- Have a natural, flowing conversation - don't follow rigid scripts or extraction patterns
+- Have a natural, flowing conversation - don't follow rigid scripts
 - Let the conversation unfold naturally, like chatting with a friend
 - Most users are new to private jets - offer educational information about private jets when relevant
 - Always provide pricing in USD ($) first, then optionally in crypto
@@ -87,8 +79,13 @@ async function generateResponse(messages, conversation) {
 - Remember that users enjoy getting a feel for pricing even if they're just exploring
 - Don't try to extract information from casual greetings like "hi there" - these are not names
 - Try to pick up on fun details about the user - are they traveling for a special occasion? Is this their first private jet experience?
-- Be conversational and friendly, not robotic or formal`;
-      
+- Be conversational and friendly, not robotic or formal
+- Handle time-wasters with humor (e.g., pets flying alone, flying to the moon, teleportation)
+- If someone asks about pets flying alone, respond with humor but mention we do accommodate pets with owners
+- If someone asks about flying to the moon/mars/space, respond with humor but redirect to Earth destinations
+- If someone asks about "cheapest possible" flights, gently explain private jets aren't about being cheap
+- For teleportation/time travel jokes, respond with humor but redirect to real travel options`;
+
       // Add pricing information
       systemPrompt += `\n\nPRICING GUIDELINES:
 - Light Jets (4-6 passengers): $4,000-5,500 per hour, typically $15,000-25,000 for short routes
@@ -101,6 +98,14 @@ Common route pricing examples:
 - San Francisco to Austin: $25,000-30,000 (Light Jet), $32,000-38,000 (Mid-size), $45,000-55,000 (Heavy)
 
 Always emphasize that these are estimates and final pricing depends on specific aircraft availability, exact dates, and other factors.`;
+
+      // Add handoff guidance
+      systemPrompt += `\n\nHANDOFF GUIDANCE:
+- If the user explicitly asks to speak with a human/agent/specialist, acknowledge this and let them know you'll connect them
+- If you have collected essential information (origin, destination, passengers, date) and the user seems serious, you can suggest connecting with a specialist
+- When suggesting a handoff, use phrases like "Would you like me to connect you with a specialist who can provide an exact quote?"
+- Never pressure the user into a handoff - it should feel natural and helpful
+- If the user agrees to connect with a specialist, thank them and let them know someone will be in touch soon`;
 
       // Add summary generation guidance
       systemPrompt += `\n\nSUMMARY GENERATION:
