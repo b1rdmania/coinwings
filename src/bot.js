@@ -551,6 +551,14 @@ bot.on('text', async (ctx) => {
 // Start bot
 bot.launch();
 
+// Keep-alive server for Heroku
+const server = http.createServer((req, res) => {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    res.end('CoinWings Bot is running!\n');
+});
+server.listen(process.env.PORT || 3000);
+console.log('Keep-alive server started on port', process.env.PORT || 3000);
+
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
