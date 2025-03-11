@@ -263,6 +263,7 @@ bot.command('agent', async (ctx) => {
         if (success) {
             const replyMessage = `Thanks for your interest in CoinWings!\n\n` +
                 `One of our aviation specialists will contact you shortly to discuss your requirements in detail.\n\n` +
+                `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
                 `In the meantime, feel free to ask any other questions you might have.`;
             
             await ctx.reply(replyMessage);
@@ -317,6 +318,7 @@ bot.on('text', async (ctx) => {
                 await ctx.reply(
                     `Thanks for your interest in CoinWings!\n\n` +
                     `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+                    `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
                     `In the meantime, feel free to ask any other questions you might have.`
                 );
                 conversation.handoffRequested = false; // Reset to prevent multiple notifications
@@ -383,6 +385,7 @@ bot.on('text', async (ctx) => {
                     await ctx.reply(
                         `Thanks for your interest in CoinWings!\n\n` +
                         `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
+                        `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
                         `In the meantime, feel free to ask any other questions you might have.`
                     );
                     conversation.handoffRequested = false; // Reset to prevent multiple notifications
@@ -398,20 +401,22 @@ bot.on('text', async (ctx) => {
                 messages: [
                     {
                         role: "system",
-                        content: `You are CoinWings' private aviation expert. You help crypto-native clients with private jet inquiries.
-                        Keep responses concise and professional. Focus on:
+                        content: `You are CoinWings' private aviation expert. Use Hemingway-like brevity: short sentences, simple words, active voice. Be friendly but direct.
+
+                        Focus on:
                         - Route information
                         - Aircraft recommendations
                         - Approximate pricing
                         - Next steps
                         
-                        IMPORTANT: Build rapport with the client before suggesting they speak with an agent. Ask lead-in questions such as:
-                        - Have they flown on a private jet before?
-                        - Would they like to know about our payment system (including crypto options)?
-                        - Would they like to understand how private jet travel typically works?
-                        - What's most important to them in their travel experience?
+                        Ask about the client's country if not mentioned. This helps with aircraft options and regulations.
                         
-                        Only suggest connecting with our aviation team after you've gathered substantial information and asked at least 2-3 lead-in questions. When appropriate, suggest they can connect with a specialist by simply replying with "yes" to your suggestion.
+                        Build rapport with lead-in questions:
+                        - Have they flown private before?
+                        - Would they like to know about crypto payment options?
+                        - What's most important in their travel experience?
+                        
+                        Only suggest connecting with our team after gathering substantial information. When appropriate, suggest they can connect with a specialist by replying with "yes".
                         
                         Current conversation context:
                         ${conversation.getSummary() || "No specific details yet."}`

@@ -31,6 +31,9 @@ class Conversation {
     this.explainedPaymentSystem = false;
     this.explainedJetTravel = false;
     this.leadInQuestionsAsked = 0;
+    
+    // User location
+    this.country = null;
   }
 
   /**
@@ -73,13 +76,16 @@ class Conversation {
     // Check for aircraft preferences
     this.extractAircraft(lowerText);
     
+    // Check for country
+    this.extractCountry(lowerText);
+    
     // Check for detailed questions
     this.checkForDetailedQuestions(lowerText);
     
     // Check for urgency signals
     this.checkForUrgencySignals(lowerText);
     
-    // Check for handoff requests
+    // Check for handoff request
     this.checkForHandoffRequest(lowerText);
   }
 
@@ -297,6 +303,54 @@ class Conversation {
   }
 
   /**
+   * Extract country from message
+   * @param {string} text - Message text (lowercase)
+   * @private
+   */
+  extractCountry(text) {
+    // Common countries
+    const countries = [
+      'united states', 'usa', 'us', 'america', 
+      'uk', 'united kingdom', 'england', 'britain', 
+      'france', 'germany', 'italy', 'spain', 
+      'switzerland', 'monaco', 'dubai', 'uae', 'united arab emirates',
+      'russia', 'china', 'japan', 'australia', 
+      'canada', 'brazil', 'mexico', 'india',
+      'singapore', 'hong kong', 'saudi arabia'
+    ];
+    
+    // Check for country mentions
+    for (const country of countries) {
+      if (text.includes(country)) {
+        // Map common variations to standard names
+        if (country === 'usa' || country === 'us' || country === 'america') {
+          this.country = 'United States';
+        } else if (country === 'uk' || country === 'britain' || country === 'england') {
+          this.country = 'United Kingdom';
+        } else if (country === 'uae') {
+          this.country = 'United Arab Emirates';
+        } else {
+          // Capitalize first letter of each word
+          this.country = country.split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+        }
+        return;
+      }
+    }
+    
+    // Check for "based in" or "from" phrases
+    const basedInMatch = text.match(/(?:based|located|living|staying|residing|from|in) (?:the |a )?([\w\s]+)(?:right now)?/);
+    if (basedInMatch && basedInMatch[1] && basedInMatch[1].length > 2 && !['here', 'there', 'now'].includes(basedInMatch[1].trim())) {
+      const potentialCountry = basedInMatch[1].trim();
+      // Avoid setting very short or common words as countries
+      if (potentialCountry.length > 2 && !['the', 'and', 'but', 'for', 'with'].includes(potentialCountry)) {
+        this.country = potentialCountry.charAt(0).toUpperCase() + potentialCountry.slice(1);
+      }
+    }
+  }
+
+  /**
    * Get conversation data for lead scoring
    * @returns {Object} Conversation data for lead scoring
    */
@@ -348,6 +402,10 @@ class Conversation {
       parts.push(`Aircraft: ${this.aircraftModel}`);
     } else if (this.aircraftCategory) {
       parts.push(`Aircraft Category: ${this.aircraftCategory}`);
+    }
+    
+    if (this.country) {
+      parts.push(`Country: ${this.country}`);
     }
     
     if (this.urgencySignals) {
