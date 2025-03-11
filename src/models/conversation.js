@@ -485,8 +485,8 @@ class Conversation {
   }
 
   /**
-   * Extract name from message
-   * @param {string} text - Message text (original case)
+   * Extract name from message text
+   * @param {string} text - Message text
    * @private
    */
   extractName(text) {
@@ -495,37 +495,27 @@ class Conversation {
       return;
     }
     
-    // Check for direct name responses
+    // Only extract names from explicit name statements
     const namePatterns = [
       // My name is pattern
-      /my name is (?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)/i,
-      // I am/I'm pattern
-      /I(?:'m| am) (?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)/i,
-      // Direct name response
-      /^(?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)$/i,
+      /my name is ([A-Za-z]+)(?: ([A-Za-z]+))?/i,
+      // I am/I'm pattern with name
+      /I(?:'m| am) ([A-Za-z]+)(?: ([A-Za-z]+))?/i,
       // Name: pattern
-      /name:? (?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)/i
+      /name:? ([A-Za-z]+)(?: ([A-Za-z]+))?/i,
+      // Call me pattern
+      /(?:call|address) me(?: as)? ([A-Za-z]+)(?: ([A-Za-z]+))?/i
     ];
     
     for (const pattern of namePatterns) {
       const match = text.match(pattern);
-      if (match && match[1]) {
+      if (match && match[1] && match[1].length > 1) {
         this.firstName = match[1];
         if (match[2]) {
           this.lastName = match[2];
         }
         return;
       }
-    }
-    
-    // Check for "call me" pattern
-    const callMeMatch = text.match(/(?:call|address) me(?: as)? (?:([A-Z][a-z]+)(?: ([A-Z][a-z]+))?)/i);
-    if (callMeMatch && callMeMatch[1]) {
-      this.firstName = callMeMatch[1];
-      if (callMeMatch[2]) {
-        this.lastName = callMeMatch[2];
-      }
-      return;
     }
   }
 

@@ -77,11 +77,13 @@ async function generateResponse(messages, conversation) {
 - Most users are new to private jets - offer educational information about private jets when relevant
 - Always provide pricing in USD ($) first, then optionally in crypto
 - Have a leisurely conversation - don't rush to connect with an agent
-- Take time to collect information, ask for their name, offer tips and pricing when asked
+- Take time to collect information naturally through conversation
+- When asking for a name, be direct: "What's your name?" or "May I ask your name?"
 - Only suggest connecting with an agent when the user explicitly asks or when you have all essential information
 - Share interesting facts about private jets to make the conversation engaging
 - When discussing pricing, provide realistic ranges based on aircraft type and route
-- Remember that users enjoy getting a feel for pricing even if they're just exploring`;
+- Remember that users enjoy getting a feel for pricing even if they're just exploring
+- Don't try to extract information from casual greetings like "hi there" - these are not names`;
       
       // Add pricing information
       systemPrompt += `\n\nPRICING GUIDELINES:
