@@ -11,19 +11,17 @@ const { storeLead } = require('../services/firebase');
  */
 async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
   try {
+    console.log('Starting notification process...');
     const userData = ctx.from;
     const score = calculateLeadScore(conversation.getDataForScoring());
     const priority = getLeadPriority(score);
     
     // Use the name from the conversation object if available
-    if (conversation.firstName) {
-      userData.first_name = conversation.firstName;
-    }
-    if (conversation.lastName) {
-      userData.last_name = conversation.lastName;
-    }
+    const firstName = conversation.firstName || userData.first_name || 'Anonymous';
+    const lastName = conversation.lastName || userData.last_name || '';
+    const username = userData.username || `ID: ${userData.id}`;
     
-    console.log(`Sending ${triggerType} notification for user ${userData.username || userData.id} with score ${score}`);
+    console.log(`Preparing notification for user ${username} with score ${score}`);
     
     // Create a clean summary of the conversation
     let summary = '';
@@ -89,7 +87,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     let message = `${triggerEmoji} ${priorityEmoji} NEW LEAD (${score}/100) - ${dateTimeStr}\n\n`;
     
     // Add contact info
-    message += `Contact: ${userData.first_name || ''} ${userData.last_name || ''} ${userData.username ? `(@${userData.username})` : '(no username)'}\n\n`;
+    message += `Contact: ${firstName} ${lastName} (@${username})\n\n`;
     
     // Add lead details
     message += `Lead Details:\n${summary}\n`;
@@ -103,11 +101,6 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     message += `Lead Score: ${score}/100 (${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority)\n`;
     message += `Trigger: ${triggerType === 'manual' ? 'User Requested' : 'Auto-escalated'}\n`;
     
-    // Add fun summary if available
-    if (conversation.funSummary) {
-      message += `\n${triggerEmoji} Quick Note: ${conversation.funSummary}\n`;
-    }
-    
     // Add reply link
     message += `\nReply to this user: https://t.me/${userData.username || `user?id=${userData.id}`}`;
     
@@ -116,8 +109,8 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       const leadData = {
         userId: userData.id,
         username: userData.username || 'Anonymous',
-        firstName: conversation.firstName || userData.first_name || 'Anonymous',
-        lastName: conversation.lastName || userData.last_name || '',
+        firstName: firstName,
+        lastName: lastName,
         score: score,
         priority: priority,
         triggerType: triggerType,
@@ -129,7 +122,6 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         pax: conversation.pax,
         date: conversation.exactDate || (conversation.dateRange ? `${conversation.dateRange.start} to ${conversation.dateRange.end}` : null),
         aircraft: conversation.aircraftModel || conversation.aircraftCategory,
-        funSummary: conversation.funSummary,
         flownPrivateBefore: conversation.flownPrivateBefore
       };
       
@@ -140,46 +132,34 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       // Continue with notification even if database storage fails
     }
     
-    // Send to agent channel if configured
-    if (config.telegram.agentChannel) {
-      try {
-        const channelId = config.telegram.agentChannel;
-        console.log(`Attempting to send notification to channel ID: ${channelId}`);
-        
-        // Log the full message for debugging
-        console.log(`Full notification message: ${message}`);
-        
-        // Try sending the message
-        await ctx.telegram.sendMessage(channelId, message);
-        console.log(`✅ Successfully sent notification to channel ${channelId}`);
-        
-        // Mark notification as sent
-        conversation.notificationSent = true;
-        
-        return true;
-      } catch (channelError) {
-        console.error('❌ Error sending to agent channel:', channelError.message);
-        console.error('Error details:', JSON.stringify(channelError, null, 2));
-        
-        // Try a different approach - send to the bot admin
-        try {
-          console.log(`Attempting to send notification to bot admin`);
-          await ctx.telegram.sendMessage(ctx.botInfo.id, 
-            `Failed to send to agent channel. Here's the notification:\n\n${message}`);
-          console.log('✅ Notification sent to bot admin as fallback');
-          conversation.notificationSent = true;
-          return true;
-        } catch (adminError) {
-          console.error('❌ Error sending to bot admin:', adminError.message);
-          return false;
-        }
-      }
-    } else {
+    // Send to agent channel
+    const channelId = config.telegram.agentChannel;
+    if (!channelId) {
       console.error('❌ Agent channel not configured');
       return false;
     }
+    
+    console.log(`Sending notification to channel ID: ${channelId}`);
+    
+    try {
+      await ctx.telegram.sendMessage(channelId, message);
+      console.log(`✅ Successfully sent notification to channel ${channelId}`);
+      conversation.notificationSent = true;
+      return true;
+    } catch (error) {
+      console.error('❌ Error sending notification:', error.message);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      // Mark as sent anyway to prevent repeated attempts
+      conversation.notificationSent = true;
+      return false;
+    }
   } catch (error) {
-    console.error('Error sending agent notification:', error);
+    console.error('Error in notification process:', error);
+    // Mark as sent to prevent repeated attempts
+    if (conversation) {
+      conversation.notificationSent = true;
+    }
     return false;
   }
 }

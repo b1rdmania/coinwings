@@ -47,55 +47,22 @@ function registerMessageHandler(bot) {
       // Add bot response to conversation
       conversation.addMessage(response, 'assistant');
       
-      // Simplified handoff detection - check both user message and OpenAI response
-      const userWantsHandoff = 
-        messageText.toLowerCase().includes('connect') || 
-        messageText.toLowerCase().includes('agent') || 
-        messageText.toLowerCase().includes('specialist') ||
-        messageText.toLowerCase() === 'yes please' ||
-        messageText.toLowerCase() === 'yes';
-      
-      const botOfferedHandoff = 
-        response.toLowerCase().includes('specialist will be in touch') ||
-        response.toLowerCase().includes('will be in touch soon') ||
-        response.toLowerCase().includes('connect you with a specialist') ||
-        response.toLowerCase().includes('charter specialists will be in touch') ||
-        response.toLowerCase().includes('noted down your request') ||
-        response.toLowerCase().includes('noted your request');
-      
-      // Force handoff for testing
-      const forceHandoff = messageText.toLowerCase().includes('force handoff');
+      // Simple handoff detection - trust OpenAI's response
+      const handoffIndicator = "specialist will be in touch";
+      const handoffRequested = response.toLowerCase().includes(handoffIndicator);
       
       // Debug logging
-      console.log(`User message: "${messageText.substring(0, 50)}..."`);
-      console.log(`Bot response: "${response.substring(0, 50)}..."`);
-      console.log(`Handoff detection: userWantsHandoff=${userWantsHandoff}, botOfferedHandoff=${botOfferedHandoff}, forceHandoff=${forceHandoff}`);
-      console.log(`Notification already sent: ${conversation.notificationSent}`);
+      console.log(`Bot response indicates handoff: ${handoffRequested}`);
       
-      // Send notification if handoff is needed and not already sent
-      if ((userWantsHandoff || botOfferedHandoff || forceHandoff) && !conversation.notificationSent) {
-        console.log(`Sending handoff notification for user ${username}`);
-        console.log(`Trigger: userWantsHandoff=${userWantsHandoff}, botOfferedHandoff=${botOfferedHandoff}, forceHandoff=${forceHandoff}`);
+      // Send notification if handoff is indicated and not already sent
+      if (handoffRequested && !conversation.notificationSent) {
+        console.log(`OpenAI indicated handoff, sending notification for user ${username}`);
         
-        try {
-          // Send notification to agent
-          const notificationResult = await sendAgentNotification(ctx, conversation, 'request');
-          console.log(`Notification result: ${notificationResult}`);
-          
-          // Mark notification as sent
-          conversation.notificationSent = true;
-          
-          // Send confirmation to user
-          if (!botOfferedHandoff) {
-            await ctx.reply("I've notified our team about your request. A specialist will be in touch with you shortly to discuss your requirements in detail.", { parse_mode: 'Markdown' });
-          }
-        } catch (notificationError) {
-          console.error('Error sending notification:', notificationError);
-          // Still mark as sent to prevent repeated attempts
-          conversation.notificationSent = true;
-          // Inform the user
-          await ctx.reply("I'm having trouble connecting you with our team. Please try again later or contact us directly at support@coinwings.com", { parse_mode: 'Markdown' });
-        }
+        // Send notification to agent
+        await sendAgentNotification(ctx, conversation, 'request');
+        
+        // Mark notification as sent
+        conversation.notificationSent = true;
       }
     } catch (error) {
       console.error('Error processing message:', error);
