@@ -74,6 +74,8 @@ async function generateResponse(messages, conversation) {
       
       // Add conversation guidance
       systemPrompt += `\n\nCONVERSATION GUIDELINES:
+- Have a natural, flowing conversation - don't follow rigid scripts or extraction patterns
+- Let the conversation unfold naturally, like chatting with a friend
 - Most users are new to private jets - offer educational information about private jets when relevant
 - Always provide pricing in USD ($) first, then optionally in crypto
 - Have a leisurely conversation - don't rush to connect with an agent
@@ -83,7 +85,9 @@ async function generateResponse(messages, conversation) {
 - Share interesting facts about private jets to make the conversation engaging
 - When discussing pricing, provide realistic ranges based on aircraft type and route
 - Remember that users enjoy getting a feel for pricing even if they're just exploring
-- Don't try to extract information from casual greetings like "hi there" - these are not names`;
+- Don't try to extract information from casual greetings like "hi there" - these are not names
+- Try to pick up on fun details about the user - are they traveling for a special occasion? Is this their first private jet experience?
+- Be conversational and friendly, not robotic or formal`;
       
       // Add pricing information
       systemPrompt += `\n\nPRICING GUIDELINES:
@@ -109,9 +113,11 @@ If asked to generate a summary, respond with a JSON object in the following form
   "date": "Travel date or date range",
   "aircraft": "Aircraft preference if mentioned",
   "name": "User's name if provided explicitly",
-  "additional_details": "Any other relevant details"
+  "additional_details": "Any other relevant details",
+  "fun_summary": "A short, fun summary with emojis about anything quirky or interesting (e.g., if they've flown private before, if it's for a special occasion, their personality, etc.)"
 }
-Only include fields where information has been clearly provided by the user. Do not include fields with uncertain or inferred information.`;
+Only include fields where information has been clearly provided by the user. Do not include fields with uncertain or inferred information.
+For the fun_summary field, be creative and personable - this helps our agents connect with the client better.`;
       
       // Important reminder
       systemPrompt += `\n\nIMPORTANT: Always maintain a friendly, helpful tone. Never pressure the user. Focus on providing accurate information and a great experience.`;
@@ -152,6 +158,10 @@ Only include fields where information has been clearly provided by the user. Do 
             additional_details: {
               type: "string",
               description: "Any other relevant details"
+            },
+            fun_summary: {
+              type: "string",
+              description: "A short, fun summary with emojis about anything quirky or interesting about this lead (e.g., if they've flown private before, if it's for a special occasion, their personality, etc.)"
             }
           },
           required: []
@@ -225,6 +235,9 @@ Only include fields where information has been clearly provided by the user. Do 
       }
       if (summaryData.additional_details) {
         conversation.additionalDetails = summaryData.additional_details;
+      }
+      if (summaryData.fun_summary) {
+        conversation.funSummary = summaryData.fun_summary;
       }
       
       // Return the regular response

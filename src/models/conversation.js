@@ -45,6 +45,12 @@ class Conversation {
     this.firstName = null;
     this.lastName = null;
     this.askedName = false;
+    
+    // Fun summary for agent notifications
+    this.funSummary = null;
+    
+    // Score for lead qualification
+    this.score = 0;
   }
 
   /**

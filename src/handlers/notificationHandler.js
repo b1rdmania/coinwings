@@ -29,7 +29,14 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     console.log(`Sending ${triggerType} notification for user ${userData.username || userData.id} with score ${score}`);
     
     // Format notification message
-    const notificationText = formatNotificationMessage(userData, score, summary, priority, triggerType);
+    const notificationText = formatNotificationMessage(
+      userData, 
+      score, 
+      summary, 
+      priority, 
+      triggerType,
+      conversation.funSummary
+    );
     
     // Try to store lead in database
     try {
@@ -48,7 +55,8 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         destination: conversation.destination,
         pax: conversation.pax,
         date: conversation.exactDate || (conversation.dateRange ? `${conversation.dateRange.start} to ${conversation.dateRange.end}` : null),
-        aircraft: conversation.aircraftModel || conversation.aircraftCategory
+        aircraft: conversation.aircraftModel || conversation.aircraftCategory,
+        funSummary: conversation.funSummary
       };
       
       await storeLead(leadData);
@@ -112,9 +120,10 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
  * @param {string} summary - Conversation summary
  * @param {string} priority - Priority level (high, medium, low)
  * @param {string} triggerType - What triggered the notification (auto/manual)
+ * @param {string} funSummary - Fun summary with emojis
  * @returns {string} Formatted notification message
  */
-function formatNotificationMessage(userData, score, summary, priority, triggerType) {
+function formatNotificationMessage(userData, score, summary, priority, triggerType, funSummary) {
   const priorityEmoji = priority === 'high' ? '🔴' : (priority === 'medium' ? '🟠' : '🟢');
   const triggerEmoji = triggerType === 'manual' ? '👤' : '🤖';
   
@@ -144,7 +153,7 @@ function formatNotificationMessage(userData, score, summary, priority, triggerTy
   });
   
   // Create a notification message
-  return `${triggerEmoji} ${priorityEmoji} NEW LEAD (${score}/100) - ${dateTimeStr}
+  let message = `${triggerEmoji} ${priorityEmoji} NEW LEAD (${score}/100) - ${dateTimeStr}
     
 Contact: ${userData.first_name || ''} ${userData.last_name || ''} ${userData.username ? `(@${userData.username})` : '(no username)'}
 
@@ -152,9 +161,16 @@ Lead Details:
 ${formattedSummary}
 
 Lead Score: ${score}/100 (${priorityEmoji} ${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority)
-Trigger: ${triggerType === 'manual' ? 'User Requested' : 'Auto-escalated'}
+Trigger: ${triggerType === 'manual' ? 'User Requested' : 'Auto-escalated'}`;
 
-Reply to this user: https://t.me/${userData.username || `user?id=${userData.id}`}`;
+  // Add fun summary if available
+  if (funSummary) {
+    message += `\n\n${triggerEmoji} Quick Note: ${funSummary}`;
+  }
+
+  message += `\n\nReply to this user: https://t.me/${userData.username || `user?id=${userData.id}`}`;
+  
+  return message;
 }
 
 async function sendLeadNotification(conversation, triggerType) {
@@ -177,6 +193,10 @@ async function sendLeadNotification(conversation, triggerType) {
                     `*Trigger:* ${triggerType}\n\n` +
                     `${summary}`;
     
+    // Add fun summary if available
+    const funSummaryMessage = conversation.funSummary ? 
+      `\n\n👤 *Quick Note:* ${conversation.funSummary}` : '';
+    
     // Store lead in database
     await db.storeLeadData({
       userId: userData.id,
@@ -187,13 +207,14 @@ async function sendLeadNotification(conversation, triggerType) {
       priority: conversation.score >= config.escalation.highPriorityThreshold ? 'HIGH' : 'Normal',
       triggerType: triggerType,
       summary: summary,
-      conversation: conversation.messages
+      conversation: conversation.messages,
+      funSummary: conversation.funSummary
     });
     
     // Send notification to all admin users
     const adminUsers = await db.getAdminUsers();
     for (const adminUser of adminUsers) {
-      await telegram.sendMessage(adminUser.userId, message, { parse_mode: 'Markdown' });
+      await telegram.sendMessage(adminUser.userId, message + funSummaryMessage, { parse_mode: 'Markdown' });
     }
     
     return true;
