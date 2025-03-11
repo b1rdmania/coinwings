@@ -143,71 +143,39 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     // Send to agent channel if configured
     if (config.telegram.agentChannel) {
       try {
-        console.log(`Sending notification to channel: ${config.telegram.agentChannel}`);
+        const channelId = config.telegram.agentChannel;
+        console.log(`Attempting to send notification to channel ID: ${channelId}`);
         
-        // Log the notification text for debugging
-        console.log(`Notification text: ${message.substring(0, 100)}...`);
-        console.log(`Agent channel ID type: ${typeof config.telegram.agentChannel}`);
-        console.log(`Agent channel ID value: ${config.telegram.agentChannel}`);
+        // Log the full message for debugging
+        console.log(`Full notification message: ${message}`);
         
-        // Try different formats for the channel ID
-        const channelIdOptions = [
-          config.telegram.agentChannel, // Original format
-          parseInt(config.telegram.agentChannel, 10), // As number
-          config.telegram.agentChannel.replace('-', ''), // Without dash
-          parseInt(config.telegram.agentChannel.replace('-', ''), 10), // Without dash as number
-          config.telegram.agentChannel.startsWith('-') ? config.telegram.agentChannel : `-${config.telegram.agentChannel}` // Ensure it has a dash
-        ];
-        
-        let success = false;
-        let error = null;
-        
-        // Try each format until one works
-        for (const channelId of channelIdOptions) {
-          try {
-            console.log(`Trying channel ID format: ${channelId} (${typeof channelId})`);
-            await ctx.telegram.sendMessage(channelId, message);
-            console.log(`Success with channel ID: ${channelId}`);
-            success = true;
-            break;
-          } catch (e) {
-            console.error(`Failed with channel ID ${channelId}:`, e.message);
-            error = e;
-          }
-        }
-        
-        if (!success) {
-          throw error || new Error('All channel ID formats failed');
-        }
-        
-        console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
+        // Try sending the message
+        await ctx.telegram.sendMessage(channelId, message);
+        console.log(`✅ Successfully sent notification to channel ${channelId}`);
         
         // Mark notification as sent
         conversation.notificationSent = true;
         
         return true;
       } catch (channelError) {
-        console.error('Error sending to agent channel:', channelError);
+        console.error('❌ Error sending to agent channel:', channelError.message);
         console.error('Error details:', JSON.stringify(channelError, null, 2));
         
-        // Try sending to admin as fallback
-        if (process.env.ADMIN_USER_ID) {
-          try {
-            console.log(`Sending notification to admin: ${process.env.ADMIN_USER_ID}`);
-            await ctx.telegram.sendMessage(process.env.ADMIN_USER_ID, 
-              `Failed to send to agent channel. Here's the notification:\n\n${message}`);
-            console.log('Notification sent to admin as fallback');
-            return true;
-          } catch (adminError) {
-            console.error('Error sending to admin:', adminError);
-          }
+        // Try a different approach - send to the bot admin
+        try {
+          console.log(`Attempting to send notification to bot admin`);
+          await ctx.telegram.sendMessage(ctx.botInfo.id, 
+            `Failed to send to agent channel. Here's the notification:\n\n${message}`);
+          console.log('✅ Notification sent to bot admin as fallback');
+          conversation.notificationSent = true;
+          return true;
+        } catch (adminError) {
+          console.error('❌ Error sending to bot admin:', adminError.message);
+          return false;
         }
-        
-        console.log('Agent channel notification failed');
-        return false;
       }
     } else {
-      console.log('Agent channel not configured');
+      console.error('❌ Agent channel not configured');
       return false;
     }
   } catch (error) {
