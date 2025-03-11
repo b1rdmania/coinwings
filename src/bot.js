@@ -6,6 +6,7 @@ const { getConversation } = require('./models/conversation');
 const { calculateLeadScore, shouldEscalateToAgent, getLeadPriority } = require('./utils/leadScoring');
 const { getAircraftInfo, getRouteInfo, getFAQ, storeLead } = require('./services/firebase');
 const http = require('http');
+const { Markup } = require('telegraf');
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -74,38 +75,80 @@ bot.command('start', async (ctx) => {
     }
 });
 
-// Aircraft info command
+/**
+ * Create keyboard options for common questions
+ * @param {string} type - Type of keyboard to create
+ * @returns {Object} Telegram keyboard markup
+ */
+function createKeyboardOptions(type) {
+    switch (type) {
+        case 'aircraft':
+            return Markup.keyboard([
+                ['Light Jet (4-6 pax)'],
+                ['Mid-size Jet (7-9 pax)'],
+                ['Heavy Jet (10-16 pax)']
+            ]).oneTime().resize();
+        
+        case 'experience':
+            return Markup.keyboard([
+                ['Yes, regularly'],
+                ['Yes, occasionally'],
+                ['No, first time']
+            ]).oneTime().resize();
+        
+        case 'payment':
+            return Markup.keyboard([
+                ['Tell me about crypto payments'],
+                ['Tell me about traditional payments'],
+                ['Tell me about both options']
+            ]).oneTime().resize();
+        
+        case 'timing':
+            return Markup.keyboard([
+                ['Within a week'],
+                ['Within a month'],
+                ['Just exploring options']
+            ]).oneTime().resize();
+            
+        case 'handoff':
+            return Markup.keyboard([
+                ['Yes, connect me with a specialist'],
+                ['No, I have more questions']
+            ]).oneTime().resize();
+            
+        case 'popular_routes':
+            return Markup.keyboard([
+                ['New York to Miami'],
+                ['London to Dubai'],
+                ['San Francisco to Austin'],
+                ['Custom route']
+            ]).oneTime().resize();
+            
+        case 'faq':
+            return Markup.keyboard([
+                ['Booking Process'],
+                ['Payment Options'],
+                ['Aircraft Information'],
+                ['Safety Standards']
+            ]).oneTime().resize();
+            
+        default:
+            return Markup.removeKeyboard();
+    }
+}
+
+// Aircraft command with keyboard options
 bot.command('aircraft', async (ctx) => {
     try {
         const conversation = getConversation(ctx.from.id, ctx.from.username);
         
-        // Get aircraft categories
-        const aircraftInfo = await getAircraftInfo();
+        const message = `What type of private jet are you interested in?`;
         
-        if (!aircraftInfo) {
-            await ctx.reply('Sorry, I couldn\'t retrieve aircraft information at the moment.');
-            return;
-        }
-        
-        const categories = Object.values(aircraftInfo.categories);
-        
-        let message = '✈️ **Available Aircraft Categories**\n\n';
-        
-        categories.forEach(category => {
-            message += `**${category.name}**\n`;
-            message += `• Capacity: ${category.capacity}\n`;
-            message += `• Range: ${category.range}\n`;
-            message += `• Best for: ${category.best_for}\n`;
-            message += `• Hourly rate: ${category.hourly_rate}\n\n`;
-        });
-        
-        message += 'For specific aircraft models or more details, just ask!';
-        
-        await ctx.reply(message, { parse_mode: 'Markdown' });
+        await ctx.reply(message, createKeyboardOptions('aircraft'));
         conversation.addMessage(message, 'bot');
     } catch (error) {
         console.error('Error in aircraft command:', error);
-        ctx.reply('Sorry, there was an error retrieving aircraft information.');
+        ctx.reply('Sorry, there was an error processing your request.');
     }
 });
 
@@ -114,32 +157,13 @@ bot.command('routes', async (ctx) => {
     try {
         const conversation = getConversation(ctx.from.id, ctx.from.username);
         
-        // Get popular routes
-        const routesInfo = await getRouteInfo();
+        const message = `Which popular route are you interested in?`;
         
-        if (!routesInfo) {
-            await ctx.reply('Sorry, I couldn\'t retrieve route information at the moment.');
-            return;
-        }
-        
-        const routes = Object.values(routesInfo.popular_routes);
-        
-        let message = '✈️ **Popular Routes**\n\n';
-        
-        routes.forEach(route => {
-            message += `**${route.origin} → ${route.destination}**\n`;
-            message += `• Distance: ${route.distance}\n`;
-            message += `• Flight time: ${route.flight_time.midsize_jet || route.flight_time.heavy_jet}\n`;
-            message += `• Pricing: ${route.pricing.midsize_jet || route.pricing.heavy_jet}\n\n`;
-        });
-        
-        message += 'For specific route pricing or details, just ask!';
-        
-        await ctx.reply(message, { parse_mode: 'Markdown' });
+        await ctx.reply(message, createKeyboardOptions('popular_routes'));
         conversation.addMessage(message, 'bot');
     } catch (error) {
         console.error('Error in routes command:', error);
-        ctx.reply('Sorry, there was an error retrieving route information.');
+        ctx.reply('Sorry, there was an error processing your request.');
     }
 });
 
@@ -148,35 +172,13 @@ bot.command('faq', async (ctx) => {
     try {
         const conversation = getConversation(ctx.from.id, ctx.from.username);
         
-        // Get FAQ
-        const faqInfo = await getFAQ();
+        const message = `What would you like to know more about?`;
         
-        if (!faqInfo) {
-            await ctx.reply('Sorry, I couldn\'t retrieve FAQ information at the moment.');
-            return;
-        }
-        
-        let message = '✈️ **Frequently Asked Questions**\n\n';
-        
-        message += '**Booking Process**\n';
-        message += `• ${faqInfo.booking_process.how_to_book}\n\n`;
-        
-        message += '**Payment**\n';
-        message += `• ${faqInfo.payment.accepted_cryptocurrencies}\n\n`;
-        
-        message += '**Aircraft**\n';
-        message += `• ${faqInfo.aircraft.selection_criteria}\n\n`;
-        
-        message += '**Safety**\n';
-        message += `• ${faqInfo.safety.standards}\n\n`;
-        
-        message += 'For more detailed information on any topic, just ask!';
-        
-        await ctx.reply(message, { parse_mode: 'Markdown' });
+        await ctx.reply(message, createKeyboardOptions('faq'));
         conversation.addMessage(message, 'bot');
     } catch (error) {
         console.error('Error in faq command:', error);
-        ctx.reply('Sorry, there was an error retrieving FAQ information.');
+        ctx.reply('Sorry, there was an error processing your request.');
     }
 });
 
@@ -358,8 +360,8 @@ bot.on('text', async (ctx) => {
                 conversation.handoffSuggested = true;
                 
                 await ctx.reply(
-                    `Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability.\n\n` +
-                    `Would you like me to notify our team? Simply reply with "yes" or tell me more about your requirements.`
+                    `Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability.`,
+                    createKeyboardOptions('handoff')
                 );
                 return;
             }
@@ -376,7 +378,8 @@ bot.on('text', async (ctx) => {
                 lowerText === 'okay' ||
                 lowerText.includes('connect') || 
                 lowerText.includes('speak') || 
-                lowerText.includes('talk to')
+                lowerText.includes('talk to') ||
+                lowerText.includes('yes, connect')
             ) {
                 // Automatically send to agent
                 const success = await sendAgentNotification(ctx, conversation, 'auto');
@@ -394,6 +397,233 @@ bot.on('text', async (ctx) => {
             }
         }
         
+        // Check for specific keywords that might trigger keyboard options
+        const lowerText = ctx.message.text.toLowerCase();
+        
+        // Handle keyboard responses for aircraft types
+        if (['light jet (4-6 pax)', 'mid-size jet (7-9 pax)', 'heavy jet (10-16 pax)'].includes(ctx.message.text.toLowerCase())) {
+            try {
+                const aircraftInfo = await getAircraftInfo();
+                let category = '';
+                
+                if (lowerText.includes('light')) {
+                    category = 'light';
+                } else if (lowerText.includes('mid-size') || lowerText.includes('midsize')) {
+                    category = 'midsize';
+                } else if (lowerText.includes('heavy')) {
+                    category = 'heavy';
+                }
+                
+                if (aircraftInfo && aircraftInfo.categories && aircraftInfo.categories[category]) {
+                    const info = aircraftInfo.categories[category];
+                    const message = `**${info.name}**\n\n` +
+                        `• Capacity: ${info.capacity}\n` +
+                        `• Range: ${info.range}\n` +
+                        `• Speed: ${info.speed}\n` +
+                        `• Examples: ${info.examples.join(', ')}\n` +
+                        `• Hourly rate: ${info.hourly_rate}\n\n` +
+                        `${info.description}\n\n` +
+                        `Would you like to know about specific routes with this aircraft type?`;
+                    
+                    await ctx.reply(message, { parse_mode: 'Markdown' });
+                    conversation.aircraftCategory = category;
+                    return;
+                }
+            } catch (error) {
+                console.error('Error handling aircraft selection:', error);
+            }
+        }
+        
+        // Handle keyboard responses for experience
+        if (['yes, regularly', 'yes, occasionally', 'no, first time'].includes(ctx.message.text.toLowerCase())) {
+            let response = '';
+            
+            if (lowerText.includes('regularly')) {
+                response = `Great! As an experienced private jet traveler, you'll appreciate our streamlined booking process and flexible options.\n\nWhat's your next destination?`;
+            } else if (lowerText.includes('occasionally')) {
+                response = `Perfect. We'll make sure your next private flight is as smooth as your previous experiences.\n\nWhere are you looking to fly?`;
+            } else if (lowerText.includes('first time')) {
+                response = `Welcome to private aviation! You'll love the convenience and luxury.\n\nPrivate jets offer:\n• No security lines\n• Direct boarding\n• Custom catering\n• Flexible scheduling\n\nWhere would you like to fly?`;
+            }
+            
+            if (response) {
+                await ctx.reply(response);
+                return;
+            }
+        }
+        
+        // Handle keyboard responses for payment options
+        if (['tell me about crypto payments', 'tell me about traditional payments', 'tell me about both options'].includes(ctx.message.text.toLowerCase())) {
+            let response = '';
+            
+            if (lowerText.includes('crypto')) {
+                response = `**Crypto Payments**\n\n` +
+                    `We accept BTC, ETH, and USDC for all bookings.\n\n` +
+                    `Benefits:\n` +
+                    `• Fast transactions\n` +
+                    `• No bank delays\n` +
+                    `• Privacy\n` +
+                    `• No currency conversion fees for international flights\n\n` +
+                    `We provide wallet addresses after booking confirmation.`;
+            } else if (lowerText.includes('traditional')) {
+                response = `**Traditional Payments**\n\n` +
+                    `We accept wire transfers, credit cards, and bank transfers.\n\n` +
+                    `Options:\n` +
+                    `• Wire transfer (preferred for larger amounts)\n` +
+                    `• Credit card (convenience fee applies)\n` +
+                    `• Bank transfer (may require additional processing time)`;
+            } else if (lowerText.includes('both')) {
+                response = `**Payment Options**\n\n` +
+                    `Crypto:\n` +
+                    `• BTC, ETH, USDC\n` +
+                    `• Fast processing\n` +
+                    `• No currency conversion fees\n\n` +
+                    `Traditional:\n` +
+                    `• Wire transfer\n` +
+                    `• Credit card\n` +
+                    `• Bank transfer\n\n` +
+                    `All payment details provided after booking confirmation.`;
+            }
+            
+            if (response) {
+                await ctx.reply(response, { parse_mode: 'Markdown' });
+                return;
+            }
+        }
+        
+        // Handle keyboard responses for timing
+        if (['within a week', 'within a month', 'just exploring options'].includes(ctx.message.text.toLowerCase())) {
+            let response = '';
+            
+            if (lowerText.includes('week')) {
+                response = `For flights within a week, we recommend booking as soon as possible to ensure aircraft availability.\n\nCan you share your specific travel dates?`;
+                conversation.mentionedTiming = true;
+            } else if (lowerText.includes('month')) {
+                response = `Booking within a month gives us good flexibility to find the perfect aircraft for your needs.\n\nDo you have specific dates in mind?`;
+                conversation.mentionedTiming = true;
+            } else if (lowerText.includes('exploring')) {
+                response = `No problem! We're happy to provide information to help with your planning.\n\nAny specific routes or aircraft types you're curious about?`;
+            }
+            
+            if (response) {
+                await ctx.reply(response);
+                return;
+            }
+        }
+        
+        // Handle keyboard responses for popular routes
+        if (['new york to miami', 'london to dubai', 'san francisco to austin', 'custom route'].includes(ctx.message.text.toLowerCase())) {
+            try {
+                const routesInfo = await getRouteInfo();
+                let routeKey = '';
+                
+                if (lowerText.includes('new york') && lowerText.includes('miami')) {
+                    routeKey = 'new_york_miami';
+                    conversation.origin = 'New York';
+                    conversation.destination = 'Miami';
+                } else if (lowerText.includes('london') && lowerText.includes('dubai')) {
+                    routeKey = 'london_dubai';
+                    conversation.origin = 'London';
+                    conversation.destination = 'Dubai';
+                } else if (lowerText.includes('san francisco') && lowerText.includes('austin')) {
+                    routeKey = 'san_francisco_austin';
+                    conversation.origin = 'San Francisco';
+                    conversation.destination = 'Austin';
+                } else if (lowerText.includes('custom')) {
+                    await ctx.reply('What route are you interested in? Please specify origin and destination cities.');
+                    return;
+                }
+                
+                if (routesInfo && routesInfo.popular_routes && routesInfo.popular_routes[routeKey]) {
+                    const route = routesInfo.popular_routes[routeKey];
+                    const message = `**${route.origin} to ${route.destination}**\n\n` +
+                        `• Distance: ${route.distance}\n` +
+                        `• Flight time:\n` +
+                        `  - Light jet: ${route.flight_time.light_jet || 'N/A'}\n` +
+                        `  - Mid-size jet: ${route.flight_time.midsize_jet || 'N/A'}\n` +
+                        `  - Heavy jet: ${route.flight_time.heavy_jet || 'N/A'}\n\n` +
+                        `• Estimated pricing:\n` +
+                        `  - Light jet: ${route.pricing.light_jet || 'N/A'}\n` +
+                        `  - Mid-size jet: ${route.pricing.midsize_jet || 'N/A'}\n` +
+                        `  - Heavy jet: ${route.pricing.heavy_jet || 'N/A'}\n\n` +
+                        `• Popular airports:\n` +
+                        `  - Origin: ${route.popular_airports.origin.join(', ')}\n` +
+                        `  - Destination: ${route.popular_airports.destination.join(', ')}\n\n` +
+                        `${route.notes}\n\n` +
+                        `When are you looking to travel?`;
+                    
+                    await ctx.reply(message, { parse_mode: 'Markdown' });
+                    return;
+                }
+            } catch (error) {
+                console.error('Error handling route selection:', error);
+            }
+        }
+        
+        // Handle keyboard responses for FAQ categories
+        if (['booking process', 'payment options', 'aircraft information', 'safety standards'].includes(ctx.message.text.toLowerCase())) {
+            try {
+                const faqInfo = await getFAQ();
+                let response = '';
+                
+                if (lowerText.includes('booking process')) {
+                    response = `**Booking Process**\n\n` +
+                        `• ${faqInfo.booking_process.how_to_book}\n\n` +
+                        `• ${faqInfo.booking_process.advance_notice}\n\n` +
+                        `• ${faqInfo.booking_process.cancellation_policy}`;
+                } else if (lowerText.includes('payment')) {
+                    response = `**Payment Options**\n\n` +
+                        `• ${faqInfo.payment.accepted_cryptocurrencies}\n\n` +
+                        `• ${faqInfo.payment.payment_process}\n\n` +
+                        `• ${faqInfo.payment.fiat_options}`;
+                } else if (lowerText.includes('aircraft')) {
+                    response = `**Aircraft Information**\n\n` +
+                        `• ${faqInfo.aircraft.selection_criteria}\n\n` +
+                        `• ${faqInfo.aircraft.amenities}\n\n` +
+                        `• ${faqInfo.aircraft.pets_policy}`;
+                } else if (lowerText.includes('safety')) {
+                    response = `**Safety Standards**\n\n` +
+                        `• ${faqInfo.safety.standards}\n\n` +
+                        `• ${faqInfo.safety.covid_measures}\n\n` +
+                        `• ${faqInfo.safety.certifications}`;
+                }
+                
+                if (response) {
+                    await ctx.reply(response, { parse_mode: 'Markdown' });
+                    return;
+                }
+            } catch (error) {
+                console.error('Error handling FAQ selection:', error);
+            }
+        }
+        
+        // If asking about aircraft types
+        if (
+            (lowerText.includes('aircraft') || lowerText.includes('jet') || lowerText.includes('plane')) && 
+            (lowerText.includes('type') || lowerText.includes('kind') || lowerText.includes('option'))
+        ) {
+            await ctx.reply('What type of private jet are you interested in?', createKeyboardOptions('aircraft'));
+            return;
+        }
+        
+        // If asking about experience
+        if (lowerText.includes('experience') && lowerText.includes('?')) {
+            await ctx.reply('Have you flown on a private jet before?', createKeyboardOptions('experience'));
+            return;
+        }
+        
+        // If asking about payment
+        if (lowerText.includes('payment') || lowerText.includes('pay') || lowerText.includes('crypto')) {
+            await ctx.reply('Which payment options would you like to learn about?', createKeyboardOptions('payment'));
+            return;
+        }
+        
+        // If asking about timing
+        if (lowerText.includes('when') || lowerText.includes('timing') || lowerText.includes('schedule')) {
+            await ctx.reply('What is your timeframe for this trip?', createKeyboardOptions('timing'));
+            return;
+        }
+        
         try {
             // Attempt OpenAI response
             const completion = await openai.chat.completions.create({
@@ -408,6 +638,18 @@ bot.on('text', async (ctx) => {
                         - Aircraft recommendations
                         - Approximate pricing
                         - Next steps
+                        
+                        Use multiple-choice options for key questions. For example:
+                        
+                        "What type of aircraft are you interested in?
+                        • Light Jet (4-6 passengers)
+                        • Mid-size Jet (7-9 passengers)
+                        • Heavy Jet (10-16 passengers)"
+                        
+                        "Have you flown private before?
+                        • Yes, regularly
+                        • Yes, occasionally
+                        • No, first time"
                         
                         Ask about the client's country if not mentioned. This helps with aircraft options and regulations.
                         
