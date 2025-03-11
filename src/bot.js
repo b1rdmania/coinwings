@@ -206,11 +206,21 @@ bot.command('agent', async (ctx) => {
                 const priority = getLeadPriority(leadData.score);
                 const priorityEmoji = priority === 'high' ? '🔴' : priority === 'medium' ? '🟡' : '🟢';
                 
+                // Get conversation summary
+                const summary = conversation.getSummary();
+                
+                // Get recent messages (last 5)
+                const recentMessages = conversation.messages.slice(-5).map(m => 
+                    `${m.role === 'user' ? '👤' : '🤖'} ${m.text.substring(0, 100)}${m.text.length > 100 ? '...' : ''}`
+                ).join('\n\n');
+                
+                // Create a more comprehensive message
                 const agentMessage = `${priorityEmoji} **NEW LEAD**\n\n` +
                     `**Lead ID:** ${leadId}\n` +
                     `**User:** @${ctx.from.username}\n` +
                     `**Score:** ${leadData.score}/100\n\n` +
-                    `**Details:**\n${conversation.getSummary()}\n\n` +
+                    `**Details:**\n${summary || 'No specific details extracted'}\n\n` +
+                    `**Recent Conversation:**\n${recentMessages}\n\n` +
                     `**Action Required:** Agent should contact @${ctx.from.username} directly.`;
                 
                 await bot.telegram.sendMessage(config.telegram.agentChannel, agentMessage, { parse_mode: 'Markdown' });
