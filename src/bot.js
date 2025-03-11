@@ -40,8 +40,8 @@ function startBot(bot) {
     const secretPath = config.telegram.webhookPath;
     const port = process.env.PORT || 3000;
     
-    // Start webhook
-    bot.telegram.setWebhook(`${domain}${secretPath}/${bot.secretPathComponent()}`);
+    // Start webhook with the correct path
+    bot.telegram.setWebhook(`${domain}${secretPath}`);
     bot.startWebhook(secretPath, null, port);
     
     console.log(`CoinWings bot is running with webhook on port ${port}`);
