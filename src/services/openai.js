@@ -48,6 +48,13 @@ async function generateResponse(messages, conversation) {
         systemPrompt += `\n- Preferred aircraft category: ${conversation.aircraftCategory}`;
       }
       
+      // Add handoff status
+      if (conversation.handoffRequested && conversation.notificationSent) {
+        systemPrompt += `\n- IMPORTANT: The user has already requested to connect with a specialist, and a notification has been sent to our team.`;
+        systemPrompt += `\n- If the user asks about the status of their connection request, inform them that a specialist will be in touch shortly.`;
+        systemPrompt += `\n- DO NOT offer to connect them again, as this has already been done.`;
+      }
+      
       // Add guidance to avoid repetition
       if (conversation.messages.length >= 2) {
         const lastBotMessage = conversation.messages.slice().reverse().find(m => m.role === 'assistant');

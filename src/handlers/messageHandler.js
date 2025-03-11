@@ -59,6 +59,7 @@ function registerMessageHandler(bot) {
       conversation.addMessage(response, 'assistant');
       
       // If handoff was requested or the score is high enough, send notification to agent
+      // Only do this if we haven't already sent a notification for this conversation
       if ((isHandoffRequest || conversation.handoffRequested) && !conversation.notificationSent) {
         console.log(`Sending agent notification for user ${username}`);
         
@@ -88,6 +89,24 @@ Feel free to ask any other questions while you wait.`;
           conversation.addMessage(confirmationMessage, 'assistant');
         } else {
           console.log('OpenAI response already contains a confirmation message, skipping additional confirmation');
+        }
+      } else if (conversation.handoffRequested && conversation.notificationSent) {
+        // If we've already sent a notification and the user is asking about the status
+        const askingAboutStatus = messageText.toLowerCase().includes('connected') || 
+                                 messageText.toLowerCase().includes('status') ||
+                                 messageText.toLowerCase().includes('waiting') ||
+                                 messageText.toLowerCase().includes('agent') ||
+                                 messageText.toLowerCase().includes('specialist');
+        
+        if (askingAboutStatus) {
+          const statusMessage = `Yes, I've already notified our team about your request. A specialist will be in touch with you shortly. 
+
+This typically takes a few minutes during business hours. Thank you for your patience!`;
+          
+          await ctx.reply(statusMessage, { parse_mode: 'Markdown' });
+          
+          // Add status message to conversation
+          conversation.addMessage(statusMessage, 'assistant');
         }
       }
       
