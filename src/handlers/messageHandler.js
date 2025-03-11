@@ -56,19 +56,29 @@ function registerMessageHandler(bot) {
         messageText.toLowerCase() === 'connect please' ||
         messageText.toLowerCase() === 'connect' ||
         messageText.toLowerCase() === 'yes please' ||
+        messageText.toLowerCase() === 'ok so that was a great chat' ||
+        messageText.toLowerCase().includes('great chat') ||
+        messageText.toLowerCase().includes('so that was a great') ||
         (response.toLowerCase().includes('connect you with a specialist') && 
          (messageText.toLowerCase() === 'yes' || messageText.toLowerCase() === 'ok' || 
           messageText.toLowerCase() === 'sure' || messageText.toLowerCase() === 'all good'));
+      
+      // Add debug logging
+      console.log(`Message: "${messageText}", explicitHandoffRequest: ${explicitHandoffRequest}, notificationSent: ${conversation.notificationSent}`);
       
       // Send notification to agent if explicitly requested and not already sent
       if (explicitHandoffRequest && !conversation.notificationSent) {
         console.log(`Explicit handoff request detected, sending agent notification for user ${username}`);
         
         // Send notification to agent
-        await sendAgentNotification(ctx, conversation, 'request');
+        const notificationResult = await sendAgentNotification(ctx, conversation, 'request');
+        console.log(`Notification result: ${notificationResult}`);
         
         // Mark notification as sent
         conversation.notificationSent = true;
+        
+        // Send confirmation to user
+        await ctx.reply("I've notified our team about your request. A specialist will be in touch with you shortly to discuss your requirements in detail.", { parse_mode: 'Markdown' });
       }
     } catch (error) {
       console.error('Error processing message:', error);

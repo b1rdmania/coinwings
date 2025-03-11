@@ -147,9 +147,18 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
         
         // Log the notification text for debugging
         console.log(`Notification text: ${message.substring(0, 100)}...`);
+        console.log(`Agent channel ID type: ${typeof config.telegram.agentChannel}`);
+        console.log(`Agent channel ID value: ${config.telegram.agentChannel}`);
+        
+        // Try to convert to number if it's a string
+        let channelId = config.telegram.agentChannel;
+        if (typeof channelId === 'string' && !isNaN(channelId)) {
+          channelId = parseInt(channelId, 10);
+          console.log(`Converted channel ID to number: ${channelId}`);
+        }
         
         // Send without parse_mode to avoid formatting errors
-        await ctx.telegram.sendMessage(config.telegram.agentChannel, message);
+        await ctx.telegram.sendMessage(channelId, message);
         
         console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
         
