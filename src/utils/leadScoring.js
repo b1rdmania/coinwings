@@ -1,3 +1,5 @@
+const config = require('../config/config');
+
 /**
  * Calculate lead score based on conversation data
  * @param {Object} conversation - Conversation data
@@ -71,7 +73,7 @@ function calculateLeadScore(conversation) {
  * @returns {boolean} Whether lead should be escalated
  */
 function shouldEscalateToAgent(score) {
-  return score >= 70; // Set threshold to 70 as requested
+  return score >= config.leadScoring.escalationThreshold;
 }
 
 /**
@@ -80,9 +82,11 @@ function shouldEscalateToAgent(score) {
  * @returns {string} Priority level (low, medium, high)
  */
 function getLeadPriority(score) {
-  if (score >= 70) {
+  const { priorities } = config.leadScoring;
+  
+  if (score >= priorities.high.min) {
     return 'high';
-  } else if (score >= 40) {
+  } else if (score >= priorities.medium.min) {
     return 'medium';
   } else {
     return 'low';
