@@ -97,28 +97,144 @@ Common route pricing examples:
 - San Francisco to Austin: $25,000-30,000 (Light Jet), $32,000-38,000 (Mid-size), $45,000-55,000 (Heavy)
 
 Always emphasize that these are estimates and final pricing depends on specific aircraft availability, exact dates, and other factors.`;
+
+      // Add summary generation guidance
+      systemPrompt += `\n\nSUMMARY GENERATION:
+When a user requests to connect with an agent, you'll need to generate a structured summary of their inquiry.
+If asked to generate a summary, respond with a JSON object in the following format:
+{
+  "origin": "City name only, no country",
+  "destination": "City name only, no country",
+  "passengers": "Number of passengers",
+  "date": "Travel date or date range",
+  "aircraft": "Aircraft preference if mentioned",
+  "name": "User's name if provided explicitly",
+  "additional_details": "Any other relevant details"
+}
+Only include fields where information has been clearly provided by the user. Do not include fields with uncertain or inferred information.`;
       
       // Important reminder
-      systemPrompt += `\n\nIMPORTANT: DO NOT ask for information that has already been provided.`;
+      systemPrompt += `\n\nIMPORTANT: Always maintain a friendly, helpful tone. Never pressure the user. Focus on providing accurate information and a great experience.`;
     }
     
-    // Prepend system message
-    const fullMessages = [
+    // Add a function to generate a structured summary
+    const functions = [
+      {
+        name: "generate_inquiry_summary",
+        description: "Generate a structured summary of the user's inquiry for the agent",
+        parameters: {
+          type: "object",
+          properties: {
+            origin: {
+              type: "string",
+              description: "The departure city (without country)"
+            },
+            destination: {
+              type: "string",
+              description: "The arrival city (without country)"
+            },
+            passengers: {
+              type: "string",
+              description: "Number of passengers"
+            },
+            date: {
+              type: "string",
+              description: "Travel date or date range"
+            },
+            aircraft: {
+              type: "string",
+              description: "Aircraft preference if mentioned"
+            },
+            name: {
+              type: "string",
+              description: "User's name if explicitly provided"
+            },
+            additional_details: {
+              type: "string",
+              description: "Any other relevant details"
+            }
+          },
+          required: []
+        }
+      }
+    ];
+    
+    // Create the OpenAI request
+    const openaiMessages = [
       { role: 'system', content: systemPrompt },
       ...messages
     ];
     
-    const response = await openai.chat.completions.create({
+    // Check if this is a handoff request
+    const isHandoffRequest = conversation.handoffRequested || 
+                            (conversation.messages.length > 0 && 
+                             conversation.checkForHandoffRequest(conversation.messages[conversation.messages.length - 1].text));
+    
+    // If this is a handoff request, ask the model to generate a summary
+    if (isHandoffRequest) {
+      // Add a message asking for a summary
+      openaiMessages.push({
+        role: 'system',
+        content: "The user has requested to connect with an agent. Please generate a structured summary of their inquiry using the generate_inquiry_summary function."
+      });
+    }
+    
+    // Call the OpenAI API
+    const completion = await openai.chat.completions.create({
       model: config.openai.model,
-      messages: fullMessages,
+      messages: openaiMessages,
       temperature: config.openai.temperature,
-      max_tokens: config.openai.maxTokens
+      max_tokens: config.openai.maxTokens,
+      functions: functions,
+      function_call: isHandoffRequest ? { name: "generate_inquiry_summary" } : "auto"
     });
     
+    // Get the response
+    const responseMessage = completion.choices[0].message;
+    
+    // Check if there's a function call
+    if (responseMessage.function_call && responseMessage.function_call.name === "generate_inquiry_summary") {
+      // Parse the function call arguments
+      const summaryData = JSON.parse(responseMessage.function_call.arguments);
+      
+      // Update the conversation with the extracted data
+      if (summaryData.origin) conversation.origin = summaryData.origin;
+      if (summaryData.destination) conversation.destination = summaryData.destination;
+      if (summaryData.passengers) conversation.pax = summaryData.passengers;
+      if (summaryData.date) {
+        if (summaryData.date.includes("to")) {
+          const [start, end] = summaryData.date.split("to").map(d => d.trim());
+          conversation.dateRange = { start, end };
+        } else {
+          conversation.exactDate = summaryData.date;
+        }
+      }
+      if (summaryData.aircraft) {
+        if (["light", "midsize", "heavy"].includes(summaryData.aircraft.toLowerCase())) {
+          conversation.aircraftCategory = summaryData.aircraft;
+        } else {
+          conversation.aircraftModel = summaryData.aircraft;
+        }
+      }
+      if (summaryData.name) {
+        const nameParts = summaryData.name.split(" ");
+        conversation.firstName = nameParts[0];
+        if (nameParts.length > 1) {
+          conversation.lastName = nameParts.slice(1).join(" ");
+        }
+      }
+      if (summaryData.additional_details) {
+        conversation.additionalDetails = summaryData.additional_details;
+      }
+      
+      // Return the regular response
+      return completion.choices[0].message.content;
+    }
+    
     console.log('OpenAI response received');
-    return response.choices[0].message.content;
+    return completion.choices[0].message.content;
   } catch (error) {
-    console.error('Error generating OpenAI response:', error);
+    console.error('Error with OpenAI:', error);
     throw error;
   }
 }

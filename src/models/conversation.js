@@ -545,60 +545,80 @@ class Conversation {
    * @returns {string} Conversation summary
    */
   getSummary() {
-    const details = [];
+    // Build a summary of the conversation for the agent
+    let summary = '';
     
-    // Route information (ESSENTIAL)
+    // Add route information
     if (this.origin && this.destination) {
-      details.push(`Route: ${this.origin} → ${this.destination}`);
+      summary += `*Route:* ${this.origin} to ${this.destination}\n`;
     } else if (this.origin) {
-      details.push(`Origin: ${this.origin}`);
+      summary += `*Origin:* ${this.origin}\n`;
     } else if (this.destination) {
-      details.push(`Destination: ${this.destination}`);
+      summary += `*Destination:* ${this.destination}\n`;
     }
     
-    // Passenger information (ESSENTIAL)
+    // Add passenger information
     if (this.pax) {
-      details.push(`Passengers: ${this.pax}`);
+      summary += `*Passengers:* ${this.pax}\n`;
     }
     
-    // Date information (ESSENTIAL)
+    // Add date information
     if (this.exactDate) {
-      details.push(`Date: ${this.exactDate}`);
+      summary += `*Date:* ${this.exactDate}\n`;
     } else if (this.dateRange) {
-      details.push(`Date Range: ${this.dateRange.start} to ${this.dateRange.end}`);
-    } else if (this.mentionedTiming) {
-      details.push(`Timing: Mentioned`);
+      summary += `*Date Range:* ${this.dateRange.start} to ${this.dateRange.end}\n`;
     }
     
-    // Aircraft information
+    // Add aircraft information
     if (this.aircraftModel) {
-      details.push(`Aircraft: ${this.aircraftModel}`);
+      summary += `*Aircraft:* ${this.aircraftModel}\n`;
     } else if (this.aircraftCategory) {
-      details.push(`Aircraft Category: ${this.aircraftCategory}`);
+      summary += `*Aircraft Category:* ${this.aircraftCategory}\n`;
     }
     
-    // Urgency signals
-    if (this.urgencySignals) {
-      details.push(`Urgency: Yes`);
+    // Add urgency signals
+    if (this.urgencySignals.length > 0) {
+      summary += `*Urgency:* ${this.urgencySignals.join(', ')}\n`;
     }
     
-    // Country information
+    // Add country information
     if (this.country) {
-      details.push(`Country: ${this.country}`);
+      summary += `*Country:* ${this.country}\n`;
     }
     
-    // Contact information
+    // Add contact information
     if (this.firstName && this.firstName !== 'Anonymous') {
-      const fullName = this.lastName ? `${this.firstName} ${this.lastName}` : this.firstName;
-      details.push(`Name: ${fullName}`);
+      let nameInfo = `*Name:* ${this.firstName}`;
+      if (this.lastName) {
+        nameInfo += ` ${this.lastName}`;
+      }
+      summary += `${nameInfo}\n`;
     }
     
-    // Additional details provided by the user
+    // Add additional details
     if (this.additionalDetails) {
-      details.push(`Additional Details: ${this.additionalDetails}`);
+      summary += `*Additional Details:* ${this.additionalDetails}\n`;
     }
     
-    return details.length > 0 ? details.join('\n') : null;
+    // Add information about what has been provided
+    const providedInfo = this.getProvidedInformation();
+    summary += '\n*Information Status:*\n';
+    summary += `- Route: ${providedInfo.route ? '✅' : '❌'}\n`;
+    summary += `- Origin: ${providedInfo.origin ? '✅' : '❌'}\n`;
+    summary += `- Destination: ${providedInfo.destination ? '✅' : '❌'}\n`;
+    summary += `- Passengers: ${providedInfo.passengers ? '✅' : '❌'}\n`;
+    summary += `- Date: ${providedInfo.date ? '✅' : '❌'}\n`;
+    summary += `- Aircraft: ${providedInfo.aircraft ? '✅' : '❌'}\n`;
+    summary += `- Contact: ${providedInfo.contact ? '✅' : '❌'}\n`;
+    
+    // Add conversation history
+    summary += '\n*Conversation History:*\n';
+    this.messages.forEach(message => {
+      const role = message.role === 'user' ? 'User' : 'Bot';
+      summary += `${role}: ${message.text}\n`;
+    });
+    
+    return summary;
   }
 
   /**
@@ -695,6 +715,17 @@ class Conversation {
         return;
       }
     }
+  }
+
+  /**
+   * Get messages in format for OpenAI API
+   * @returns {Array} Messages formatted for OpenAI
+   */
+  getMessagesForAI() {
+    return this.messages.map(msg => ({
+      role: msg.role,
+      content: msg.text
+    }));
   }
 }
 

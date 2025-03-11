@@ -1,7 +1,7 @@
 const { getConversation } = require('../models/conversation');
 const { calculateLeadScore, shouldEscalateToAgent } = require('../utils/leadScoring');
 const openaiService = require('../services/openai');
-const sendAgentNotification = require('./notificationHandler');
+const { sendAgentNotification, sendLeadNotification } = require('./notificationHandler');
 const config = require('../config/config');
 const { findMatchingResponse } = require('../config/responses');
 
@@ -21,10 +21,15 @@ function registerMessageHandler(bot) {
       // Get or create conversation for this user
       const conversation = getConversation(userId, username);
       
+      // Store user information
+      conversation.userId = userId;
+      conversation.username = username;
+      
       // Check if this is a handoff request
       const isHandoffRequest = conversation.checkForHandoffRequest(messageText);
       if (isHandoffRequest) {
         console.log(`Handoff request detected: ${messageText}`);
+        conversation.handoffRequested = true;
       }
       
       // Add message to conversation history
@@ -32,6 +37,7 @@ function registerMessageHandler(bot) {
       
       // Calculate lead score
       const score = calculateLeadScore(conversation.getDataForScoring());
+      conversation.score = score;
       console.log(`Lead score for ${username}: ${score}`);
       
       // Check if the last bot message suggested connecting with a specialist
@@ -89,15 +95,19 @@ function registerMessageHandler(bot) {
       if (shouldEscalate) {
         console.log(`Escalating to agent for user ${username} (score: ${score})`);
         
+        // Generate response with OpenAI (this will also generate the summary via function call)
+        const response = await openaiService.generateResponse(
+          conversation.getMessagesForAI(),
+          conversation
+        );
+        
         // Send notification to agent channel if not already sent
         if (!conversation.notificationSent) {
-          await sendAgentNotification(ctx, conversation, isHandoffRequest || suggestedHandoff ? 'manual' : 'auto');
+          await sendLeadNotification(conversation, isHandoffRequest || suggestedHandoff ? 'manual' : 'auto');
+          conversation.notificationSent = true;
         } else {
           console.log(`Notification already sent for user ${username}, skipping`);
         }
-        
-        // Get conversation summary
-        const summary = conversation.getSummary();
         
         // Create a confirmation message
         const confirmationMessage = `Thanks for your interest in CoinWings! ✨
@@ -106,7 +116,7 @@ I've notified our aviation team, and a specialist will contact you shortly to di
 
 Here's a summary of what I've sent to our team:
 
-${formatSummary(summary || 'Your flight inquiry')}
+${formatSummary(conversation.getSummary() || 'Your flight inquiry')}
 
 Feel free to ask any other questions while you wait.`;
         
@@ -207,7 +217,7 @@ function generateHumorResponse(text) {
   
   if (/can (my|a) (dog|cat|pet) fly (alone|by (itself|himself|herself))/i.test(lowerText) || 
       /send (my|a) (dog|cat|pet) on a jet/i.test(lowerText)) {
-    return "Technically, yes. But I doubt your pet has a crypto wallet for payment. 🐶��\n\nJokes aside, we *do* accommodate pets with their owners! Many clients bring their furry friends along.";
+    return "Technically, yes. But I doubt your pet has a crypto wallet for payment. 🐶\n\nJokes aside, we *do* accommodate pets with their owners! Many clients bring their furry friends along.";
   }
   
   if (/fly (me|us) to (the moon|mars|space)/i.test(lowerText)) {
@@ -233,14 +243,11 @@ function generateHumorResponse(text) {
  */
 async function handleOpenAIResponse(ctx, conversation) {
   try {
-    // Get conversation messages in format for OpenAI
-    const messages = conversation.messages.map(msg => ({
-      role: msg.role,
-      content: msg.text
-    }));
-    
     // Generate response using OpenAI with conversation context
-    const response = await openaiService.generateResponse(messages, conversation);
+    const response = await openaiService.generateResponse(
+      conversation.getMessagesForAI(),
+      conversation
+    );
     
     console.log('Sending response to user:', response.substring(0, 50) + '...');
     
@@ -271,9 +278,20 @@ async function handleOpenAIResponse(ctx, conversation) {
       console.log('Bot response indicates specialist contact, sending notification to agent channel');
       
       // Send notification to agent channel
-      await sendAgentNotification(ctx, conversation, 'auto');
+      await sendLeadNotification(conversation, 'auto');
       
       // Mark notification as sent to prevent duplicate notifications
+      conversation.notificationSent = true;
+    }
+    
+    // Check if score exceeds threshold for auto-escalation
+    if (conversation.score >= config.escalation.escalationThreshold && !conversation.notificationSent) {
+      console.log(`Score ${conversation.score} exceeds threshold ${config.escalation.escalationThreshold}, sending notification`);
+      
+      // Send notification to agents
+      await sendLeadNotification(conversation, 'score');
+      
+      // Mark notification as sent
       conversation.notificationSent = true;
     }
   } catch (error) {
