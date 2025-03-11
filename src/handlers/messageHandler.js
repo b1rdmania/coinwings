@@ -48,12 +48,9 @@ function registerMessageHandler(bot) {
       conversation.addMessage(response, 'assistant');
       
       // Check if OpenAI requested an agent notification
-      console.log(`🔍 HANDOFF DEBUG: OpenAI requested agent notification: ${!!conversation.shouldNotifyAgent}`);
-      
-      // Send notification if OpenAI requested it and not already sent
       if (conversation.shouldNotifyAgent && !conversation.notificationSent) {
-        console.log(`🔍 HANDOFF DEBUG: Sending notification for user ${username}`);
-        console.log(`🔍 HANDOFF DEBUG: Notification reason: ${conversation.notificationReason || 'Not specified'}`);
+        console.log(`Sending notification for user ${username}`);
+        console.log(`Notification reason: ${conversation.notificationReason || 'Not specified'}`);
         
         // Send notification to agent
         await sendAgentNotification(ctx, conversation, 'request');

@@ -106,14 +106,6 @@ Remember to keep your responses conversational and natural. Don't use rigid form
         systemPrompt += `\n- If the user asks about the status of their connection request, inform them that a specialist will be in touch shortly.`;
         systemPrompt += `\n- DO NOT offer to connect them again, as this has already been done.`;
       }
-      
-      // Add guidance to avoid repetition
-      if (conversation.messages.length >= 2) {
-        const lastBotMessage = conversation.messages.slice().reverse().find(m => m.role === 'assistant');
-        if (lastBotMessage) {
-          systemPrompt += `\n\nIMPORTANT: Your last message was: "${lastBotMessage.text.substring(0, 100)}...". DO NOT repeat this message. Provide a new, helpful response.`;
-        }
-      }
     }
     
     // Create the OpenAI request
@@ -140,13 +132,17 @@ Remember to keep your responses conversational and natural. Don't use rigid form
       }
     ];
     
-    // Call the OpenAI API with retry logic
-    let retries = 0;
-    const maxRetries = 2;
+    // Simple retry logic
+    let response;
+    let attempts = 0;
+    const maxAttempts = 2;
     
-    while (retries <= maxRetries) {
+    while (!response && attempts <= maxAttempts) {
       try {
-        // Call the OpenAI API with function calling
+        attempts++;
+        console.log(`OpenAI attempt ${attempts}/${maxAttempts + 1}`);
+        
+        // Call the OpenAI API
         const completion = await openai.chat.completions.create({
           model: config.openai.model,
           messages: openaiMessages,
@@ -156,12 +152,9 @@ Remember to keep your responses conversational and natural. Don't use rigid form
           function_call: "auto"
         });
         
-        // Get the response
         const responseMessage = completion.choices[0].message;
         
-        console.log('OpenAI response received');
-        
-        // Check if OpenAI wants to call a function
+        // Check for function call
         if (responseMessage.function_call && responseMessage.function_call.name === "notify_agent") {
           console.log('OpenAI requested to notify agent');
           
@@ -180,42 +173,36 @@ Remember to keep your responses conversational and natural. Don't use rigid form
           }
         }
         
-        return responseMessage.content || "I'm sorry, I couldn't generate a response. How else can I help you today?";
-      } catch (error) {
-        retries++;
-        console.error(`OpenAI API error (attempt ${retries}/${maxRetries + 1}):`, error);
+        // Get the response text
+        response = responseMessage.content;
         
-        if (retries > maxRetries) {
-          // If we've exhausted retries, return a fallback response
-          console.log('Exhausted retries, using fallback response');
-          return generateFallbackResponse(messages[messages.length - 1].content);
+        // If we got an empty response, throw an error to trigger retry
+        if (!response) {
+          throw new Error('Empty response from OpenAI');
         }
         
-        // Wait before retrying (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries - 1)));
+      } catch (error) {
+        console.error(`OpenAI API error (attempt ${attempts}/${maxAttempts + 1}):`, error.message);
+        
+        // If we've exhausted retries, use a fallback
+        if (attempts > maxAttempts) {
+          console.log('Exhausted retries, using fallback response');
+          return "I apologize, but I'm having trouble processing your request right now. Could you please try again or rephrase your question?";
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
+    
+    return response;
+    
   } catch (error) {
-    console.error('Error with OpenAI:', error);
-    return generateFallbackResponse(messages[messages.length - 1].content);
+    console.error('Unexpected error with OpenAI:', error);
+    return "I apologize, but I'm having trouble processing your request right now. Could you please try again or rephrase your question?";
   }
 }
 
-/**
- * Generate a fallback response based on user query
- * @param {string} query - The user's message
- * @returns {string} - A fallback response
- */
-function generateFallbackResponse(query) {
-  // Simple fallback response that doesn't include fixed pricing or information
-  return `I apologize, but I'm having trouble connecting to my knowledge base at the moment. 
-
-I'd be happy to help you with information about private jet charters, pricing estimates, or connecting you with a specialist once my connection is restored.
-
-Could you please try your question again in a moment? Thank you for your patience!`;
-}
-
 module.exports = {
-  generateResponse,
-  generateFallbackResponse
+  generateResponse
 }; 
