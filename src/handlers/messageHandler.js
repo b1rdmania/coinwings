@@ -68,8 +68,14 @@ function registerMessageHandler(bot) {
         // Mark notification as sent
         conversation.notificationSent = true;
         
-        // Send confirmation message if not already sent in the OpenAI response
-        if (!response.toLowerCase().includes('specialist') && !response.toLowerCase().includes('connect you')) {
+        // Check if the OpenAI response already contains a confirmation about connecting with a specialist
+        const containsConfirmation = response.toLowerCase().includes('specialist') || 
+                                    response.toLowerCase().includes('connect you') ||
+                                    response.toLowerCase().includes('i\'ll connect you') ||
+                                    response.toLowerCase().includes('they\'ll be in touch');
+        
+        // Only send our confirmation message if the OpenAI response doesn't already include one
+        if (!containsConfirmation) {
           const confirmationMessage = `Thanks for your interest in CoinWings! ✨
 
 I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.
@@ -80,6 +86,8 @@ Feel free to ask any other questions while you wait.`;
           
           // Add confirmation to conversation
           conversation.addMessage(confirmationMessage, 'assistant');
+        } else {
+          console.log('OpenAI response already contains a confirmation message, skipping additional confirmation');
         }
       }
       

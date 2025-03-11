@@ -307,9 +307,21 @@ When formatting conversation summaries for the agent channel:
           }
           
           // Generate a natural response instead of "I'm processing your request"
-          const naturalResponse = `Great! I'll connect you with a specialist who can provide an exact quote for your trip from ${conversation.origin || 'your origin'} to ${conversation.destination || 'your destination'}.
+          let naturalResponse = '';
+          
+          // Check if the user's last message was a simple confirmation like "yes", "ok", "all good", etc.
+          const lastUserMessage = messages[messages.length - 1].content.toLowerCase().trim();
+          const isSimpleConfirmation = /^(yes|yeah|yep|ok|okay|sure|all good|sounds good|great|perfect|fine|alright|go ahead|connect me|connect|proceed)$/i.test(lastUserMessage);
+          
+          if (isSimpleConfirmation) {
+            // If the user is just confirming, give a simple acknowledgment
+            naturalResponse = `Perfect! I've notified our team, and a specialist will be in touch with you shortly about your trip from ${conversation.origin || 'your origin'} to ${conversation.destination || 'your destination'}.`;
+          } else {
+            // Otherwise, give the standard response asking for more details
+            naturalResponse = `Great! I'll connect you with a specialist who can provide an exact quote for your trip from ${conversation.origin || 'your origin'} to ${conversation.destination || 'your destination'}.
 
 They'll be in touch shortly to discuss the details and answer any questions you might have. Is there anything specific you'd like them to know about your preferences or requirements?`;
+          }
           
           console.log('OpenAI response received (function call)');
           return naturalResponse;
