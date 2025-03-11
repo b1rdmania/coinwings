@@ -26,6 +26,7 @@ class Conversation {
     this.urgencySignals = false;
     this.handoffRequested = false;
     this.handoffSuggested = false;
+    this.notificationSent = false;
     this.askedName = false;
     this.country = null;
     this.additionalDetails = null;
@@ -61,6 +62,11 @@ class Conversation {
     // If this is a user message, analyze it to extract information
     if (role === 'user') {
       this.analyzeMessage(text);
+    }
+    
+    // If this is a bot message, check if it's suggesting a handoff
+    else if (role === 'assistant') {
+      this.checkForHandoffSuggestion(text);
     }
     
     // Trim conversation history if it gets too long
@@ -340,7 +346,16 @@ class Conversation {
       'already told you',
       'i already said',
       'i told you',
-      'i already told you'
+      'i already told you',
+      'send it to agent',
+      'send to agent',
+      'send it to a specialist',
+      'send to specialist',
+      'send it to human',
+      'send to human',
+      'send me to agent',
+      'send me to a specialist',
+      'send me to human'
     ];
     
     // Affirmative responses to handoff suggestions
@@ -648,6 +663,42 @@ class Conversation {
     }
     
     return null; // All essential information has been provided
+  }
+
+  /**
+   * Check if a bot message is suggesting a handoff
+   * @param {string} text - Bot message text
+   * @private
+   */
+  checkForHandoffSuggestion(text) {
+    if (!text) return;
+    
+    const lowerText = text.toLowerCase();
+    const suggestHandoffPatterns = [
+      'connect you with',
+      'connect with a specialist',
+      'pass your inquiry',
+      'get you a quote',
+      'exact quote',
+      'arrange this for you',
+      'connect with one of our specialists',
+      'specialist who can provide',
+      'specialist can help',
+      'would you like me to arrange',
+      'connect you to a specialist',
+      'put you in touch with',
+      'specialist will contact you',
+      'specialist will get back to you',
+      'specialist will be in touch'
+    ];
+    
+    for (const pattern of suggestHandoffPatterns) {
+      if (lowerText.includes(pattern)) {
+        this.handoffSuggested = true;
+        console.log('Bot suggested handoff, setting handoffSuggested flag');
+        return;
+      }
+    }
   }
 }
 

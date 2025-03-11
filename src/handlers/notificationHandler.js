@@ -53,13 +53,21 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       try {
         console.log(`Sending notification to channel: ${config.telegram.agentChannel}`);
         
+        // Log the notification text for debugging
+        console.log(`Notification text: ${notificationText.substring(0, 100)}...`);
+        
         // Send without parse_mode to avoid formatting errors
         await ctx.telegram.sendMessage(config.telegram.agentChannel, notificationText);
         
         console.log(`Notification sent to agent channel for user ${userData.username || userData.id}`);
+        
+        // Mark notification as sent
+        conversation.notificationSent = true;
+        
         return true;
       } catch (channelError) {
         console.error('Error sending to agent channel:', channelError);
+        console.error('Error details:', JSON.stringify(channelError, null, 2));
         
         // Try sending to admin as fallback
         if (process.env.ADMIN_USER_ID) {

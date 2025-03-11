@@ -8,7 +8,7 @@ const config = {
     // Bot configuration
     telegram: {
         token: process.env.BOT_TOKEN,
-        agentChannel: process.env.AGENT_CHANNEL || '@coinwings_agents',
+        agentChannel: process.env.AGENT_CHANNEL || '-1002387786090',
         webhookDomain: process.env.APP_URL || 'https://coinwings-app-adaf631c80ba.herokuapp.com',
         webhookPath: '/telegraf',
     },
