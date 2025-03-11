@@ -707,12 +707,21 @@ bot.on('text', async (ctx) => {
     }
 });
 
-// Start the bot
-bot.launch();
+// Set up webhook
+const PORT = process.env.PORT || 3000;
+
+// Start bot with webhook
+bot.launch({
+    webhook: {
+        domain: 'https://coinwings-app-adaf631c80ba.herokuapp.com',
+        port: PORT
+    }
+}).then(() => {
+    console.log('CoinWings bot is running with webhook on port', PORT);
+}).catch((err) => {
+    console.error('Error starting bot:', err);
+});
 
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
