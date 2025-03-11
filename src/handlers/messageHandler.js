@@ -48,15 +48,32 @@ function registerMessageHandler(bot) {
       conversation.addMessage(response, 'assistant');
       
       // Simple handoff detection - trust OpenAI's response
-      const handoffIndicator = "specialist will be in touch";
+      const handoffIndicator = "a specialist will be in touch with you shortly";
       const handoffRequested = response.toLowerCase().includes(handoffIndicator);
       
       // Debug logging
-      console.log(`Bot response indicates handoff: ${handoffRequested}`);
+      console.log(`🔍 HANDOFF DEBUG: Checking for handoff indicator: "${handoffIndicator}"`);
+      console.log(`🔍 HANDOFF DEBUG: Bot response (first 100 chars): "${response.substring(0, 100)}..."`);
+      console.log(`🔍 HANDOFF DEBUG: Bot response lowercase (first 100 chars): "${response.toLowerCase().substring(0, 100)}..."`);
+      console.log(`🔍 HANDOFF DEBUG: Handoff detected: ${handoffRequested}`);
+      console.log(`🔍 HANDOFF DEBUG: Notification already sent: ${conversation.notificationSent}`);
+      
+      // Also check for partial matches to help debug
+      const partialMatches = [
+        "specialist will be in touch",
+        "will be in touch with you",
+        "will be in touch shortly",
+        "specialist will contact you"
+      ];
+      
+      for (const partial of partialMatches) {
+        const matches = response.toLowerCase().includes(partial);
+        console.log(`🔍 HANDOFF DEBUG: Partial match "${partial}": ${matches}`);
+      }
       
       // Send notification if handoff is indicated and not already sent
       if (handoffRequested && !conversation.notificationSent) {
-        console.log(`OpenAI indicated handoff, sending notification for user ${username}`);
+        console.log(`🔍 HANDOFF DEBUG: Handoff detected, sending notification for user ${username}`);
         
         // Send notification to agent
         await sendAgentNotification(ctx, conversation, 'request');

@@ -11,8 +11,13 @@ const { storeLead } = require('../services/firebase');
  */
 async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
   try {
-    console.log('Starting notification process...');
+    console.log('🔍 NOTIFICATION DEBUG: Starting notification process...');
+    console.log('🔍 NOTIFICATION DEBUG: Context object keys:', Object.keys(ctx));
+    console.log('🔍 NOTIFICATION DEBUG: Telegram object available:', !!ctx.telegram);
+    
     const userData = ctx.from;
+    console.log('🔍 NOTIFICATION DEBUG: User data:', JSON.stringify(userData, null, 2));
+    
     const score = calculateLeadScore(conversation.getDataForScoring());
     const priority = getLeadPriority(score);
     
@@ -21,7 +26,7 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     const lastName = conversation.lastName || userData.last_name || '';
     const username = userData.username || `ID: ${userData.id}`;
     
-    console.log(`Preparing notification for user ${username} with score ${score}`);
+    console.log(`🔍 NOTIFICATION DEBUG: Preparing notification for user ${username} with score ${score}`);
     
     // Create a clean summary of the conversation
     let summary = '';
@@ -126,36 +131,52 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       };
       
       await storeLead(leadData);
-      console.log('Lead data stored in database');
+      console.log('🔍 NOTIFICATION DEBUG: Lead data stored in database');
     } catch (dbError) {
-      console.error('Error storing lead in database:', dbError);
+      console.error('🔍 NOTIFICATION DEBUG: Error storing lead in database:', dbError);
       // Continue with notification even if database storage fails
     }
     
     // Send to agent channel
     const channelId = config.telegram.agentChannel;
+    console.log('🔍 NOTIFICATION DEBUG: Agent channel ID from config:', channelId);
+    
     if (!channelId) {
       console.error('❌ Agent channel not configured');
       return false;
     }
     
-    console.log(`Sending notification to channel ID: ${channelId}`);
+    console.log(`🔍 NOTIFICATION DEBUG: Attempting to send notification to channel ID: ${channelId}`);
+    console.log(`🔍 NOTIFICATION DEBUG: Message length: ${message.length} characters`);
     
     try {
-      await ctx.telegram.sendMessage(channelId, message);
+      const result = await ctx.telegram.sendMessage(channelId, message);
       console.log(`✅ Successfully sent notification to channel ${channelId}`);
+      console.log('🔍 NOTIFICATION DEBUG: Telegram API response:', JSON.stringify(result, null, 2));
       conversation.notificationSent = true;
       return true;
     } catch (error) {
       console.error('❌ Error sending notification:', error.message);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('🔍 NOTIFICATION DEBUG: Full error object:', JSON.stringify(error, null, 2));
       
-      // Mark as sent anyway to prevent repeated attempts
-      conversation.notificationSent = true;
-      return false;
+      // Try with a simpler message as a fallback
+      try {
+        console.log('🔍 NOTIFICATION DEBUG: Attempting to send simplified notification as fallback');
+        const simpleMessage = `NEW LEAD - ${firstName} ${lastName} (@${username}) - Score: ${score}/100`;
+        await ctx.telegram.sendMessage(channelId, simpleMessage);
+        console.log('✅ Successfully sent simplified notification');
+        conversation.notificationSent = true;
+        return true;
+      } catch (fallbackError) {
+        console.error('❌ Error sending simplified notification:', fallbackError.message);
+        // Mark as sent anyway to prevent repeated attempts
+        conversation.notificationSent = true;
+        return false;
+      }
     }
   } catch (error) {
     console.error('Error in notification process:', error);
+    console.error('🔍 NOTIFICATION DEBUG: Stack trace:', error.stack);
     // Mark as sent to prevent repeated attempts
     if (conversation) {
       conversation.notificationSent = true;
