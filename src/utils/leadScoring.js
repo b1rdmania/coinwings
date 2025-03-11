@@ -59,7 +59,7 @@ function calculateLeadScore(conversation) {
  * @returns {boolean} Whether lead should be escalated
  */
 function shouldEscalateToAgent(score) {
-  return score >= 60; // Lowered threshold for agent escalation
+  return score >= 40; // Significantly lowered threshold for agent escalation
 }
 
 /**

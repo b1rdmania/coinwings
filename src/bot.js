@@ -416,16 +416,23 @@ bot.on('text', async (ctx) => {
             
             if (success) {
                 console.log('Agent notification sent successfully');
-                await ctx.reply(
-                    `Thanks for your interest in CoinWings!\n\n` +
+                
+                // Get conversation summary
+                const summary = conversation.getSummary();
+                
+                // Create a confirmation message with the summary
+                const confirmationMessage = `Thanks for your interest in CoinWings!\n\n` +
                     `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements in detail.\n\n` +
                     `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
-                    `In the meantime, feel free to ask any other questions you might have.`
-                );
+                    `Here's a summary of the information we've sent to our team:\n\n` +
+                    `${summary || 'Your flight inquiry details'}\n\n` +
+                    `Feel free to ask any other questions you might have while waiting.`;
+                
+                await ctx.reply(confirmationMessage);
                 conversation.handoffRequested = false; // Reset to prevent multiple notifications
             } else {
                 console.log('Failed to send agent notification');
-                await ctx.reply('I\'ll connect you with one of our aviation specialists. Please use the /agent command to submit your inquiry.');
+                await ctx.reply('I\'ll connect you with one of our aviation specialists. Please try again in a moment.');
             }
             return;
         }
@@ -433,38 +440,56 @@ bot.on('text', async (ctx) => {
         // Check if conversation has enough information for lead scoring
         const conversationData = conversation.getDataForScoring();
         const leadScore = calculateLeadScore(conversationData);
+        console.log(`Lead score for ${ctx.from.username}: ${leadScore}`);
         
-        // If lead score is high enough, suggest agent handoff, but only after lead-in questions
-        if (shouldEscalateToAgent(leadScore) && !conversation.handoffSuggested && conversation.messages.length >= 6) {
-            // Check message content for evidence of lead-in questions being asked
-            const lastFiveMessages = conversation.messages.slice(-5);
-            const botMessages = lastFiveMessages.filter(m => m.role === 'assistant');
+        // If we have basic information (origin/destination, pax, or timing), automatically suggest handoff
+        const hasBasicInfo = (
+            (conversation.origin && conversation.destination) || 
+            conversation.pax || 
+            conversation.exactDate || 
+            conversation.dateRange || 
+            conversation.mentionedTiming
+        );
+        
+        // If lead score is high enough or we have basic info, suggest or initiate agent handoff
+        if ((shouldEscalateToAgent(leadScore) || hasBasicInfo) && !conversation.handoffSuggested && conversation.messages.length >= 3) {
+            console.log(`Auto-suggesting handoff for ${ctx.from.username} (score: ${leadScore}, hasBasicInfo: ${hasBasicInfo})`);
             
-            // Look for lead-in questions in bot messages
-            let hasAskedLeadInQuestions = false;
-            for (const message of botMessages) {
-                const text = message.text.toLowerCase();
-                if (
-                    (text.includes('flown') && text.includes('before')) ||
-                    (text.includes('payment') && (text.includes('system') || text.includes('crypto'))) ||
-                    (text.includes('how') && text.includes('jet') && text.includes('travel')) ||
-                    (text.includes('important') && text.includes('experience'))
-                ) {
-                    hasAskedLeadInQuestions = true;
-                    break;
+            // If score is high enough, automatically send to agent
+            if (leadScore >= 40) {
+                console.log(`Auto-sending to agent for ${ctx.from.username} (high score: ${leadScore})`);
+                
+                // Get conversation summary
+                const summary = conversation.getSummary();
+                
+                // Automatically send to agent without asking
+                const success = await sendAgentNotification(ctx, conversation, 'auto');
+                
+                if (success) {
+                    console.log('Agent notification sent automatically (high score)');
+                    
+                    // Create a confirmation message with the summary
+                    const confirmationMessage = `Thanks for providing those details!\n\n` +
+                        `I've notified our aviation team, and a specialist will contact you shortly to discuss your requirements and provide exact pricing.\n\n` +
+                        `We aim to reply within 15 minutes between 9am and 9pm GMT from our London office.\n\n` +
+                        `Here's a summary of the information we've sent to our team:\n\n` +
+                        `${summary || 'Your flight inquiry details'}\n\n` +
+                        `Feel free to ask any other questions you might have while waiting.`;
+                    
+                    await ctx.reply(confirmationMessage);
+                    conversation.handoffRequested = false; // Reset to prevent multiple notifications
+                    return;
                 }
             }
             
-            // Only suggest handoff if lead-in questions have been asked
-            if (hasAskedLeadInQuestions) {
-                conversation.handoffSuggested = true;
-                
-                await ctx.reply(
-                    `Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability.`,
-                    createKeyboardOptions('handoff')
-                );
-                return;
-            }
+            // Otherwise just suggest handoff
+            conversation.handoffSuggested = true;
+            
+            await ctx.reply(
+                `Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability. Would you like me to do that now?`,
+                createKeyboardOptions('handoff')
+            );
+            return;
         }
         
         // Check for positive response to handoff suggestion or direct agent request
@@ -558,162 +583,4 @@ bot.on('text', async (ctx) => {
             let response = '';
             
             if (lowerText.includes('regularly')) {
-                response = `Great! As an experienced private jet traveler, you'll appreciate our streamlined booking process and flexible options.\n\nWhat's your next destination?`;
-            } else if (lowerText.includes('occasionally')) {
-                response = `Perfect. We'll make sure your next private flight is as smooth as your previous experiences.\n\nWhere are you looking to fly?`;
-            } else if (lowerText.includes('first time')) {
-                response = `Welcome to private aviation! You'll love the convenience and luxury.\n\nPrivate jets offer:\n• No security lines\n• Direct boarding\n• Custom catering\n• Flexible scheduling\n\nWhere would you like to fly?`;
-            }
-            
-            if (response) {
-                await ctx.reply(response);
-                return;
-            }
-        }
-        
-        // Handle keyboard responses for payment options
-        if (['tell me about crypto payments', 'tell me about traditional payments', 'tell me about both options'].includes(ctx.message.text.toLowerCase())) {
-            let response = '';
-            
-            if (lowerText.includes('crypto')) {
-                response = `**Crypto Payments**\n\n` +
-                    `We accept BTC, ETH, and USDC for all bookings.\n\n` +
-                    `Benefits:\n` +
-                    `• Fast transactions\n` +
-                    `• No bank delays\n` +
-                    `• Privacy\n` +
-                    `• No currency conversion fees for international flights\n\n` +
-                    `We provide wallet addresses after booking confirmation.`;
-            } else if (lowerText.includes('traditional')) {
-                response = `**Traditional Payments**\n\n` +
-                    `We accept wire transfers, credit cards, and bank transfers.\n\n` +
-                    `Options:\n` +
-                    `• Wire transfer (preferred for larger amounts)\n` +
-                    `• Credit card (2.9% fee)\n` +
-                    `• Bank transfer (free for international flights)`;
-            } else if (lowerText.includes('both')) {
-                response = `**Payment Options**\n\n` +
-                    `We accept BTC, ETH, USDC, wire transfers, credit cards, and bank transfers.\n\n` +
-                    `Crypto benefits:\n` +
-                    `• Fast transactions\n` +
-                    `• No bank delays\n` +
-                    `• Privacy\n` +
-                    `• No currency conversion fees for international flights\n\n` +
-                    `Credit card fee: 2.9%\n` +
-                    `Bank transfer fee: Free for international flights`;
-            }
-            
-            if (response) {
-                await ctx.reply(response, { parse_mode: 'Markdown' });
-                return;
-            }
-        }
-        
-        try {
-            // Attempt OpenAI response
-            console.log('Attempting OpenAI response');
-            const completion = await openai.chat.completions.create({
-                model: "gpt-4",
-                messages: [
-                    {
-                        role: "system",
-                        content: `You are CoinWings' private aviation expert. Use Hemingway-like brevity: short sentences, simple words, active voice. Be friendly but direct.
-
-                        ${conversation.firstName && conversation.firstName !== 'Anonymous' ? `Address the user by their name: ${conversation.firstName}` : ''}
-
-                        Focus on:
-                        - Route information
-                        - Aircraft recommendations
-                        - Approximate pricing
-                        - Next steps
-                        
-                        Use multiple-choice options for key questions. For example:
-                        
-                        "What type of aircraft are you interested in?
-                        • Light Jet (4-6 passengers)
-                        • Mid-size Jet (7-9 passengers)
-                        • Heavy Jet (10-16 passengers)"
-                        
-                        "Have you flown private before?
-                        • Yes, regularly
-                        • Yes, occasionally
-                        • No, first time"
-                        
-                        Ask about the client's country if not mentioned. This helps with aircraft options and regulations.
-                        
-                        Build rapport with lead-in questions:
-                        - Have they flown private before?
-                        - Would they like to know about crypto payment options?
-                        - What's most important in their travel experience?
-                        
-                        IMPORTANT: After gathering basic information (route, passengers, timing), ALWAYS suggest connecting with our team for exact pricing and availability. Tell the user they can connect with a specialist by replying with "yes" or typing "agent".
-                        
-                        If the user mentions specific routes, dates, or shows clear interest in booking, IMMEDIATELY suggest connecting them with an agent by saying: "Based on your requirements, I'd like to connect you with one of our aviation specialists who can provide exact pricing and availability. Would you like me to do that now?"
-
-                        Current conversation context:
-                        ${conversation.getSummary() || "No specific details yet."}`
-                    },
-                    ...conversation.messages.slice(-5).map(m => ({
-                        role: m.role,
-                        content: m.text
-                    }))
-                ],
-                temperature: 0.7,
-                max_tokens: 500
-            });
-            console.log('OpenAI response received');
-
-            const response = completion.choices[0].message.content;
-            console.log('Sending response to user:', response.substring(0, 50) + '...');
-            await ctx.reply(response);
-            console.log('Response sent to user');
-            
-            // Add bot response to conversation
-            conversation.addMessage(response, 'assistant');
-            console.log('Response added to conversation');
-            
-        } catch (aiError) {
-            console.error('OpenAI Error:', aiError);
-            
-            // Determine appropriate fallback response
-            let response = fallbackResponses.general;
-            const message = ctx.message.text.toLowerCase();
-            
-            if (message.includes('price') || message.includes('cost') || message.includes('how much')) {
-                response = fallbackResponses.pricing;
-            } else if (message.includes('process') || message.includes('how does') || message.includes('how do')) {
-                response = fallbackResponses.process;
-            }
-            
-            console.log('Sending fallback response:', response.substring(0, 50) + '...');
-            await ctx.reply(response);
-            console.log('Fallback response sent');
-            
-            // Add fallback response to conversation
-            conversation.addMessage(response, 'assistant');
-            console.log('Fallback response added to conversation');
-        }
-    } catch (error) {
-        console.error('Error handling message:', error);
-        ctx.reply('Sorry, there was an error processing your request.');
-    }
-});
-
-// Set up webhook
-const PORT = process.env.PORT || 3000;
-
-// Start bot with webhook
-bot.launch({
-    webhook: {
-        domain: 'https://coinwings-app-adaf631c80ba.herokuapp.com',
-        port: PORT
-    }
-}).then(() => {
-    console.log('CoinWings bot is running with webhook on port', PORT);
-}).catch((err) => {
-    console.error('Error starting bot:', err);
-});
-
-// Enable graceful stop
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+                response = `

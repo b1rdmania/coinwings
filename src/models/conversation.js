@@ -299,6 +299,8 @@ class Conversation {
    * @private
    */
   checkForHandoffRequest(text) {
+    // Make this method more sensitive to detect any potential handoff request
+    
     const handoffPatterns = [
       /(?:speak|talk)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team|someone)/i,
       /(?:connect|transfer)\s+(?:me|us)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team|someone)/i,
@@ -307,14 +309,26 @@ class Conversation {
       /(?:real|actual)\s+(?:human|agent|person|representative|specialist|team)/i,
       /(?:send|forward)\s+(?:to|with)\s+(?:a|an|the)\s+(?:human|agent|person|representative|specialist|team)/i,
       /(?:agent|human|specialist|team)/i,
-      /(?:yes|sure|ok|okay|connect|please)/i
+      /(?:yes|sure|ok|okay|connect|please)/i,
+      /(?:book|booking|reserve|reservation)/i,
+      /(?:price|pricing|quote|cost)/i,
+      /(?:exact|specific|detailed)/i,
+      /(?:ready|proceed|go ahead)/i
     ];
     
-    // Also check for simple keywords
-    const handoffKeywords = ['agent', 'human', 'person', 'specialist', 'team', 'send', 'connect', 'talk', 'speak'];
+    // Expanded list of keywords that might indicate a handoff request
+    const handoffKeywords = [
+      'agent', 'human', 'person', 'specialist', 'team', 'send', 'connect', 'talk', 'speak',
+      'book', 'booking', 'reserve', 'reservation', 'charter', 'flight',
+      'price', 'pricing', 'quote', 'cost', 'exact', 'specific', 'detailed',
+      'ready', 'proceed', 'go ahead', 'yes', 'sure', 'ok', 'okay', 'please',
+      'help', 'contact', 'call', 'email', 'message', 'direct', 'now', 'today'
+    ];
     
+    // Check for patterns
     for (const pattern of handoffPatterns) {
       if (pattern.test(text)) {
+        console.log('Handoff requested detected via pattern:', text);
         this.handoffRequested = true;
         return;
       }
@@ -324,9 +338,18 @@ class Conversation {
     const lowerText = text.toLowerCase();
     for (const keyword of handoffKeywords) {
       if (lowerText.includes(keyword)) {
+        console.log('Handoff requested detected via keyword:', keyword, 'in text:', text);
         this.handoffRequested = true;
         return;
       }
+    }
+    
+    // Check for affirmative responses
+    if (lowerText === 'yes' || lowerText === 'y' || lowerText === 'yeah' || lowerText === 'yep' || 
+        lowerText === 'sure' || lowerText === 'ok' || lowerText === 'okay' || lowerText === 'please') {
+      console.log('Handoff requested detected via affirmative response:', text);
+      this.handoffRequested = true;
+      return;
     }
   }
 
