@@ -24,8 +24,15 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
     
     console.log(`🔍 NOTIFICATION DEBUG: Preparing notification for user ${username}`);
     
-    // Create a clean summary of the conversation
-    let summary = '';
+    // Get current date and time
+    const now = new Date();
+    const dateTimeStr = now.toLocaleString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
     
     // Create a notification message
     let message = `🤖 NEW LEAD - ${dateTimeStr}\n\n`;
@@ -87,16 +94,6 @@ async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
       // Truncate long messages
       const text = msg.text.length > 100 ? msg.text.substring(0, 100) + '...' : msg.text;
       message += `${role} ${text}\n`;
-    });
-    
-    // Get current date and time
-    const now = new Date();
-    const dateTimeStr = now.toLocaleString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
     });
     
     // Add trigger type
