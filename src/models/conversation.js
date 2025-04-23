@@ -5,47 +5,61 @@ class Conversation {
   /**
    * Create a new conversation
    * @param {string} userId - User ID
-   * @param {string} username - Username
    */
-  constructor(userId, username) {
+  constructor(userId) {
+    this.id = `conv_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     this.userId = userId;
-    this.username = username;
     this.messages = [];
-    this.notificationSent = false;
-    this.shouldNotifyAgent = false;
-    this.notificationReason = null;
-    this.createdAt = new Date();
-    this.lastActivity = new Date();
-    
-    // Basic conversation state
+    this.firstName = '';
+    this.lastName = '';
+    this.username = '';
+    this.telegramId = userId;
     this.origin = null;
     this.destination = null;
-    this.pax = null;
-    this.exactDate = null;
-    this.dateRange = null;
-    this.aircraftCategory = null;
-    this.aircraftModel = null;
-    this.firstName = null;
-    this.lastName = null;
+    this.passengers = null;
+    this.date = null;
+    this.aircraft = null;
     this.country = null;
     this.flownPrivateBefore = null;
-    this.additionalDetails = null;
-    this.funSummary = null;
+    this.affiliateId = null;
+    this.affiliateSource = null; // 'telegram', 'website', 'twitter'
+    this.notificationSent = false;
+    this.notificationReason = null;
+    this.lastUpdated = Date.now();
+  }
+
+  /**
+   * Set affiliate information
+   * @param {string} affiliateId - The affiliate code
+   * @param {string} source - The source of the affiliate (telegram, website, twitter)
+   */
+  setAffiliate(affiliateId, source) {
+    this.affiliateId = affiliateId;
+    this.affiliateSource = source;
+    this.lastUpdated = Date.now();
   }
 
   /**
    * Add a message to the conversation
-   * @param {string} text - Message text
-   * @param {string} role - Message role (user/assistant)
+   * @param {string} role - The role of the message sender (user/assistant)
+   * @param {string} text - The message text
    */
-  addMessage(text, role = 'user') {
+  addMessage(role, text) {
     this.messages.push({
       role,
       text,
-      timestamp: new Date()
+      timestamp: Date.now()
     });
-    
-    this.lastActivity = new Date();
+    this.lastUpdated = Date.now();
+  }
+
+  /**
+   * Get the last N messages from the conversation
+   * @param {number} n - Number of messages to retrieve
+   * @returns {Array} - Array of messages
+   */
+  getLastMessages(n = 10) {
+    return this.messages.slice(-n);
   }
 
   /**
@@ -53,10 +67,37 @@ class Conversation {
    * @returns {Array} - Messages formatted for OpenAI
    */
   getMessagesForAI() {
-    return this.messages.map(message => ({
-      role: message.role,
-      content: message.text
+    return this.messages.map(msg => ({
+      role: msg.role,
+      content: msg.text
     }));
+  }
+
+  /**
+   * Get the conversation summary
+   * @returns {Object} - Summary of the conversation
+   */
+  getSummary() {
+    return {
+      id: this.id,
+      userId: this.userId,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      username: this.username,
+      telegramId: this.telegramId,
+      origin: this.origin,
+      destination: this.destination,
+      passengers: this.passengers,
+      date: this.date,
+      aircraft: this.aircraft,
+      country: this.country,
+      flownPrivateBefore: this.flownPrivateBefore,
+      affiliateId: this.affiliateId,
+      affiliateSource: this.affiliateSource,
+      notificationSent: this.notificationSent,
+      notificationReason: this.notificationReason,
+      lastUpdated: this.lastUpdated
+    };
   }
 }
 
@@ -66,12 +107,11 @@ const conversations = {};
 /**
  * Get or create a conversation for a user
  * @param {string} userId - User ID
- * @param {string} username - Username
  * @returns {Conversation} - User conversation
  */
-function getConversation(userId, username) {
+function getConversation(userId) {
   if (!conversations[userId]) {
-    conversations[userId] = new Conversation(userId, username);
+    conversations[userId] = new Conversation(userId);
   }
   return conversations[userId];
 }

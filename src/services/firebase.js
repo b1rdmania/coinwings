@@ -1,5 +1,7 @@
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, get, set, update } = require('firebase/database');
+const admin = require('firebase-admin');
+const config = require('../config');
 
 // Firebase configuration - will be loaded from environment variables
 const firebaseConfig = {
@@ -10,6 +12,15 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
+
+// Initialize Firebase Admin
+const serviceAccount = require('../../serviceAccountKey.json');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: config.firebase.databaseURL
+});
+
+const db = admin.database();
 
 /**
  * Get aircraft information from Firebase
@@ -78,79 +89,81 @@ async function getRouteInfo(origin = null, destination = null) {
 }
 
 /**
- * Store lead information in Firebase
- * @param {Object} leadData - Lead information
- * @returns {Promise<string>} Lead ID
+ * Store lead data in Firebase
+ * @param {Object} leadData - The lead data to store
+ * @returns {Promise<string>} - The ID of the stored lead
  */
-async function storeLead(leadData) {
+const storeLeadData = async (leadData) => {
   try {
-    const timestamp = Date.now();
-    const leadId = `lead_${timestamp}_${Math.floor(Math.random() * 1000)}`;
-    const leadRef = ref(database, `leads/${leadId}`);
-    
-    // Ensure all required fields are present and properly formatted
-    const lead = {
-      id: leadId,
-      timestamp: timestamp,
-      userId: leadData.userId || 0,
-      username: leadData.username || 'Anonymous',
-      firstName: leadData.firstName || 'Anonymous',
-      lastName: leadData.lastName || '',
-      score: leadData.score || 0,
-      priority: leadData.priority || 'low',
-      triggerType: leadData.triggerType || 'auto',
+    // Add timestamp and source
+    const data = {
+      ...leadData,
+      timestamp: Date.now(),
+      source: 'CoinWings',
       status: 'new',
-      lastUpdated: timestamp,
-      
-      // Optional conversation data
-      summary: leadData.summary || 'No summary available',
-      
-      // Optional trip details
-      origin: leadData.origin || null,
-      destination: leadData.destination || null,
-      date: leadData.date || null,
-      pax: leadData.pax || null,
-      aircraft: leadData.aircraft || null,
-      
-      // Additional fields
-      notes: leadData.notes || '',
-      assignedAgent: null
+      lastUpdated: Date.now(),
+      affiliateSource: leadData.affiliateSource || null
     };
+
+    // Generate a unique ID for the lead
+    const leadRef = db.ref('leads').push();
+    await leadRef.set(data);
     
-    // Store conversation messages as a stringified JSON to avoid Firebase validation issues
-    if (leadData.conversation && Array.isArray(leadData.conversation)) {
-      lead.conversationData = JSON.stringify(leadData.conversation);
-    } else {
-      lead.conversationData = '[]';
-    }
-    
-    await set(leadRef, lead);
-    console.log(`Lead ${leadId} stored successfully`);
-    return leadId;
+    console.log(`Lead stored successfully with ID: ${leadRef.key}`);
+    return leadRef.key;
   } catch (error) {
-    console.error('Error storing lead:', error);
+    console.error('Error storing lead data:', error);
     throw error;
   }
-}
+};
 
 /**
- * Update lead status in Firebase
- * @param {string} leadId - Lead ID
- * @param {Object} updateData - Data to update
- * @returns {Promise<boolean>} Success status
+ * Get admin users from Firebase
+ * @returns {Promise<Array>} - Array of admin users
  */
-async function updateLead(leadId, updateData) {
+const getAdminUsers = async () => {
   try {
-    const leadRef = ref(database, `leads/${leadId}`);
-    updateData.lastUpdated = Date.now();
-    
-    await update(leadRef, updateData);
-    return true;
+    const snapshot = await db.ref('adminUsers').once('value');
+    return snapshot.val() || [];
   } catch (error) {
-    console.error('Error updating lead:', error);
-    return false;
+    console.error('Error getting admin users:', error);
+    return [];
   }
-}
+};
+
+/**
+ * Update lead status
+ * @param {string} leadId - The ID of the lead to update
+ * @param {string} status - The new status
+ * @returns {Promise<void>}
+ */
+const updateLeadStatus = async (leadId, status) => {
+  try {
+    await db.ref(`leads/${leadId}`).update({
+      status,
+      lastUpdated: Date.now()
+    });
+    console.log(`Lead ${leadId} status updated to ${status}`);
+  } catch (error) {
+    console.error('Error updating lead status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get lead by ID
+ * @param {string} leadId - The ID of the lead to retrieve
+ * @returns {Promise<Object>} - The lead data
+ */
+const getLeadById = async (leadId) => {
+  try {
+    const snapshot = await db.ref(`leads/${leadId}`).once('value');
+    return snapshot.val();
+  } catch (error) {
+    console.error('Error getting lead:', error);
+    throw error;
+  }
+};
 
 /**
  * Get FAQ information from Firebase
@@ -177,7 +190,9 @@ async function getFAQ(category = null) {
 module.exports = {
   getAircraftInfo,
   getRouteInfo,
-  storeLead,
-  updateLead,
+  storeLeadData,
+  getAdminUsers,
+  updateLeadStatus,
+  getLeadById,
   getFAQ
 }; 

@@ -1,119 +1,80 @@
-const config = require('../config/config');
-const { storeLead } = require('../services/firebase');
+const config = require('../config');
+const { storeLeadData } = require('../services/firebase');
 
 /**
- * Send notification to agent channel about a potential lead
- * @param {Object} ctx - Telegram context
- * @param {Object} conversation - User conversation
- * @param {string} triggerType - What triggered the notification (auto/manual)
- * @returns {Promise<boolean>} Success status
+ * Format the notification message
+ * @param {Object} conversation - The conversation object
+ * @returns {string} - The formatted notification message
  */
-async function sendAgentNotification(ctx, conversation, triggerType = 'auto') {
-  try {
-    console.log('🔍 NOTIFICATION DEBUG: Starting notification process...');
-    console.log('🔍 NOTIFICATION DEBUG: Context object keys:', Object.keys(ctx));
-    console.log('🔍 NOTIFICATION DEBUG: Telegram object available:', !!ctx.telegram);
-    
-    const userData = ctx.from;
-    console.log('🔍 NOTIFICATION DEBUG: User data:', JSON.stringify(userData, null, 2));
-    
-    // Use the name from the conversation object if available
-    const firstName = conversation.firstName || userData.first_name || 'Anonymous';
-    const lastName = conversation.lastName || userData.last_name || '';
-    const username = conversation.username || userData.username || 'no_username';
-    const userId = conversation.telegramId || userData.id;
-    
-    console.log(`🔍 NOTIFICATION DEBUG: Preparing notification for user ${username}`);
-    
-    // Create a unique lead ID
-    const leadId = `lead_${Date.now()}_${Math.floor(Math.random() * 10)}`;
-    
-    // Store lead data in database
-    const leadData = {
-      id: leadId,
-      userId: userId,
-      username: username,
-      firstName: firstName,
-      lastName: lastName,
-      timestamp: new Date().toISOString(),
-      origin: conversation.origin || null,
-      destination: conversation.destination || null,
-      date: conversation.exactDate || null,
-      pax: conversation.pax || null,
-      aircraft: conversation.aircraftModel || conversation.aircraftCategory || null,
-      reason: conversation.notificationReason || 'Not specified',
-      status: 'new',
-      messages: conversation.messages.slice(-10) // Last 10 messages
-    };
-    
-    // Store lead in database
-    await storeLead(leadData);
-    console.log(`Lead ${leadId} stored successfully`);
-    console.log('🔍 NOTIFICATION DEBUG: Lead data stored in database');
-    
-    // Get agent channel ID from config
-    const channelId = config.telegram.agentChannel;
-    console.log('🔍 NOTIFICATION DEBUG: Agent channel ID from config:', channelId);
-    
-    // Convert channel ID to number if it's a string
-    const numericChannelId = typeof channelId === 'string' ? parseInt(channelId, 10) : channelId;
-    console.log('🔍 NOTIFICATION DEBUG: Converted channel ID to number:', numericChannelId);
-    
-    // Format the notification message
-    let recentMessages = '';
-    const lastMessages = conversation.messages.slice(-10).reverse(); // Get last 10 messages in reverse order
-    
-    for (let i = 0; i < lastMessages.length; i++) {
-      const msg = lastMessages[i];
-      const icon = msg.role === 'user' ? '👤' : '🤖';
-      // Truncate long messages
-      const text = msg.text.length > 100 ? msg.text.substring(0, 97) + '...' : msg.text;
-      recentMessages += `${icon} ${text}\n`;
-    }
-    
-    // Create a direct reply link using the user's ID
-    const replyLink = userId ? `https://t.me/user?id=${userId}` : `https://t.me/${username}`;
-    
-    // Format the notification message
-    const message = `🤖 NEW LEAD - ${new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+const formatNotificationMessage = (conversation) => {
+  const dateTimeStr = new Date().toLocaleString();
+  
+  return `
+🤖 🔴 NEW LEAD - ${dateTimeStr}
 
-Contact: ${firstName} ${lastName}${username ? ` (@${username})` : ''}
+Contact: ${conversation.firstName} ${conversation.lastName} (${conversation.username ? '@' + conversation.username : 'No Username'})
+Telegram ID: ${conversation.telegramId}
+${conversation.affiliateId ? `Affiliate: ${conversation.affiliateId} (via ${conversation.affiliateSource})` : ''}
+Firebase Lead ID: ${conversation.id}
 
 Lead Details:
-${conversation.origin && conversation.destination ? `🛫 Route: ${conversation.origin} to ${conversation.destination}` : ''}
-${conversation.pax ? `👥 Passengers: ${conversation.pax}` : ''}
-${conversation.exactDate ? `📅 Date: ${conversation.exactDate}` : ''}
-${conversation.aircraftModel || conversation.aircraftCategory ? `✈️ Aircraft: ${conversation.aircraftModel || conversation.aircraftCategory}` : ''}
-📝 Reason for Handoff: ${conversation.notificationReason || 'Not specified'}
+✈️ Route: ${conversation.origin} → ${conversation.destination}
+👥 Passengers: ${conversation.passengers}
+📅 Date: ${conversation.date}
+🛩 Aircraft: ${conversation.aircraft}
+${conversation.country ? `🌍 Country: ${conversation.country}` : ''}
+${conversation.flownPrivateBefore ? `✈️ Experience: ${conversation.flownPrivateBefore}` : ''}
 
-Conversation History:
-${recentMessages}
-Trigger: ${triggerType === 'request' ? 'User Requested' : 'AI Recommended'}
+Source: CoinWings
+${conversation.notificationReason ? `Reason: ${conversation.notificationReason}` : ''}
 
-Reply to this user: ${replyLink}`;
+Reply to this user: https://t.me/user?id=${conversation.telegramId}
+`;
+};
 
-    console.log(`🔍 NOTIFICATION DEBUG: Attempting to send notification to channel ID: ${numericChannelId}`);
-    console.log(`🔍 NOTIFICATION DEBUG: Message length: ${message.length} characters`);
+/**
+ * Send notification to agent channel
+ * @param {Object} ctx - Telegram context
+ * @param {Object} conversation - The conversation object
+ * @param {string} reason - The reason for the notification
+ * @returns {Promise<boolean>} - Whether the notification was sent successfully
+ */
+const sendAgentNotification = async (ctx, conversation, reason) => {
+  try {
+    // Store lead data in Firebase
+    const leadId = await storeLeadData({
+      id: conversation.id,
+      telegramId: conversation.telegramId,
+      firstName: conversation.firstName,
+      lastName: conversation.lastName,
+      username: conversation.username,
+      origin: conversation.origin,
+      destination: conversation.destination,
+      passengers: conversation.passengers,
+      date: conversation.date,
+      aircraft: conversation.aircraft,
+      country: conversation.country,
+      flownPrivateBefore: conversation.flownPrivateBefore,
+      affiliateId: conversation.affiliateId,
+      notificationReason: reason
+    });
+
+    // Format the notification message
+    const message = formatNotificationMessage(conversation);
+
+    // Send the notification to the agent channel
+    const channelId = config.telegram.agentChannel;
+    console.log(`Sending notification to channel ID: ${channelId}`);
     
-    // Send notification to agent channel
-    const result = await ctx.telegram.sendMessage(numericChannelId, message);
-    console.log(`✅ Successfully sent notification to channel ${numericChannelId}`);
-    console.log('🔍 NOTIFICATION DEBUG: Telegram API response:', JSON.stringify(result, null, 2));
+    await ctx.telegram.sendMessage(channelId, message);
+    console.log('Notification sent successfully');
     
     return true;
   } catch (error) {
-    console.error('❌ Error sending agent notification:', error);
-    
-    // Try to notify the user that there was an issue
-    try {
-      await ctx.reply("I'm having trouble connecting you with our team. Please try again in a few moments or contact us directly at support@coinwings.io");
-    } catch (replyError) {
-      console.error('Failed to send error message to user:', replyError);
-    }
-    
+    console.error('Error sending notification:', error);
     return false;
   }
-}
+};
 
 module.exports = {
   sendAgentNotification
