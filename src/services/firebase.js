@@ -13,19 +13,39 @@ const config = require('../config/config.js');
 // const app = initializeApp(firebaseConfig);
 // const database = getDatabase(app);
 
-// Initialize Firebase Admin using explicit Service Account Key
+// Initialize Firebase Admin
 if (!admin.apps.length) {
     try {
-        // Assuming serviceAccountKey.json is in the ROOT directory
-        const serviceAccount = require('../../serviceAccountKey.json');
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-            databaseURL: config.firebase.databaseURL
-        });
-        console.log('Firebase Admin Initialized (using service account key)');
+        let serviceAccount;
+        if (process.env.NODE_ENV === 'production' && process.env.FIREBASE_PRIVATE_KEY) {
+            // Heroku/Production: Use environment variables
+            console.log('Initializing Firebase Admin using Heroku Config Vars...');
+            // Need to replace \n characters in the private key if they exist
+            const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\n/g, '\n');
+            serviceAccount = {
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: privateKey
+            }
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount),
+                databaseURL: config.firebase.databaseURL // Ensure config file also loads databaseURL from env
+            });
+        } else {
+            // Local Development: Use service account key file
+            console.log('Initializing Firebase Admin using local service account key...');
+            serviceAccount = require('../../serviceAccountKey.json');
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount),
+                databaseURL: config.firebase.databaseURL
+            });
+        }
+        console.log('Firebase Admin Initialized successfully.');
     } catch (error) {
-        console.error('Firebase Admin Initialization failed using service account key:', error);
-        console.error('Ensure serviceAccountKey.json exists in the project root and the path is correct.');
+        console.error('Firebase Admin Initialization failed:', error);
+        if (process.env.NODE_ENV !== 'production') {
+             console.error('Ensure serviceAccountKey.json exists for local dev OR FIREBASE_* env vars are set for production.');
+        }
         process.exit(1); // Exit if Firebase initialization fails
     }
 } else {
