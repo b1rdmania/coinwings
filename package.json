@@ -1,35 +1,47 @@
 {
-  "name": "coinwings-bot",
+  "name": "coinwings-admin",
   "version": "1.0.0",
-  "description": "Private aviation concierge bot for the crypto community",
-  "main": "src/bot.js",
-  "scripts": {
-    "start": "node src/bot.js",
-    "dev": "nodemon src/bot.js",
-    "simple": "node src/bot-simple.js",
-    "dev-simple": "nodemon src/bot-simple.js",
-    "import-data": "node src/scripts/import-data.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/b1rdmania/coinwings.git"
-  },
-  "author": "b1rdmania",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/b1rdmania/coinwings/issues"
-  },
-  "homepage": "https://github.com/b1rdmania/coinwings#readme",
-  "dependencies": {
-    "dotenv": "^16.4.7",
-    "firebase": "^11.4.0",
-    "openai": "^4.77.3",
-    "telegraf": "^4.16.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
-  },
+  "private": true,
   "engines": {
     "node": "18.x"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.0.0",
+    "antd": "^5.0.0",
+    "dotenv": "^16.5.0",
+    "express": "^4.18.2",
+    "firebase-admin": "^11.11.0",
+    "openai": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.0",
+    "react-scripts": "5.0.1",
+    "serve": "^14.2.1",
+    "telegraf": "^4.16.3"
+  },
+  "scripts": {
+    "start": "node src/bot.js",
+    "dev": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }

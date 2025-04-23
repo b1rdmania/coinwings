@@ -1,9 +1,12 @@
 const { Markup } = require('telegraf');
 const config = require('../config/config');
-const { getConversation } = require('../models/conversation');
+const { getConversation, Conversation } = require('../models/conversation');
 const { calculateLeadScore, shouldEscalateToAgent } = require('../utils/leadScoring');
 const sendAgentNotification = require('./notificationHandler');
 const { responses } = require('../config/responses');
+
+// Store active conversations
+const conversations = new Map();
 
 /**
  * Register all command handlers for the bot
@@ -12,12 +15,12 @@ const { responses } = require('../config/responses');
 function registerCommandHandlers(bot) {
   // Start command
   bot.start((ctx) => {
-    ctx.reply(responses.welcome_message.response, createKeyboardOptions('default'));
+    handleStart(ctx);
   });
 
   // Help command
   bot.help((ctx) => {
-    ctx.reply(responses.how_it_works.response + "\n\n" + responses.faq.response, createKeyboardOptions('default'));
+    handleHelp(ctx);
   });
 
   // Aircraft selection actions
@@ -315,7 +318,74 @@ function createKeyboardOptions(type) {
   }
 }
 
+/**
+ * Handle the /start command
+ * @param {Object} ctx - Telegram context
+ */
+const handleStart = async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const startParam = ctx.startPayload; // Get affiliate code from deep link
+    
+    // Create or get conversation
+    let conversation = conversations.get(userId);
+    if (!conversation) {
+      conversation = new Conversation(userId);
+      conversations.set(userId, conversation);
+    }
+
+    // Store affiliate ID if present
+    if (startParam) {
+      conversation.affiliateId = startParam;
+      console.log(`Affiliate tracking started: ${startParam} for user ${userId}`);
+    }
+
+    // Store user information
+    conversation.firstName = ctx.from.first_name;
+    conversation.lastName = ctx.from.last_name || '';
+    conversation.username = ctx.from.username || '';
+    conversation.telegramId = userId;
+
+    // Send welcome message
+    await ctx.reply(config.messages.welcome);
+  } catch (error) {
+    console.error('Error in start command:', error);
+    await ctx.reply('Sorry, there was an error starting the conversation. Please try again.');
+  }
+};
+
+/**
+ * Handle the /help command
+ * @param {Object} ctx - Telegram context
+ */
+const handleHelp = async (ctx) => {
+  try {
+    await ctx.reply(config.messages.help);
+  } catch (error) {
+    console.error('Error in help command:', error);
+    await ctx.reply('Sorry, there was an error. Please try again.');
+  }
+};
+
+/**
+ * Handle the /reset command
+ * @param {Object} ctx - Telegram context
+ */
+const handleReset = async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    conversations.delete(userId);
+    await ctx.reply('Conversation reset. How can I help you today?');
+  } catch (error) {
+    console.error('Error in reset command:', error);
+    await ctx.reply('Sorry, there was an error resetting the conversation. Please try again.');
+  }
+};
+
 module.exports = {
   registerCommandHandlers,
-  createKeyboardOptions
+  createKeyboardOptions,
+  handleStart,
+  handleHelp,
+  handleReset
 }; 

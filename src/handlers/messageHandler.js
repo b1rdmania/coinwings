@@ -28,8 +28,8 @@ function registerMessageHandler(bot) {
       conversation.lastName = lastName;
       conversation.telegramId = userId;
       
-      // Add message to conversation history
-      conversation.addMessage(ctx.message.text);
+      // Add message to conversation history with correct role
+      conversation.addMessage('user', ctx.message.text);
       
       // Get messages for AI
       const messages = conversation.getMessagesForAI();
@@ -38,7 +38,7 @@ function registerMessageHandler(bot) {
       const response = await generateResponse(messages, conversation);
       
       // Add AI response to conversation
-      conversation.addMessage(response, 'assistant');
+      conversation.addMessage('assistant', response);
       
       // Send response to user
       await ctx.reply(response);

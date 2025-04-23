@@ -1,48 +1,57 @@
-const { initializeApp } = require('firebase/app');
-const { getDatabase, ref, get, set, update } = require('firebase/database');
+// const { initializeApp } = require('firebase/app'); // Removed Client SDK
+// const { getDatabase, ref, get, set, update } = require('firebase/database'); // Removed Client SDK
 const admin = require('firebase-admin');
-const config = require('../config');
+const config = require('../config/config.js');
 
 // Firebase configuration - will be loaded from environment variables
-const firebaseConfig = {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  databaseURL: process.env.FIREBASE_DATABASE_URL
-};
+// const firebaseConfig = { // Removed Client SDK config
+//   projectId: process.env.FIREBASE_PROJECT_ID,
+//   databaseURL: process.env.FIREBASE_DATABASE_URL
+// };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
+// Initialize Firebase Client SDK - Removed
+// const app = initializeApp(firebaseConfig);
+// const database = getDatabase(app);
 
-// Initialize Firebase Admin
-const serviceAccount = require('../../serviceAccountKey.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: config.firebase.databaseURL
-});
+// Initialize Firebase Admin using explicit Service Account Key
+if (!admin.apps.length) {
+    try {
+        // Assuming serviceAccountKey.json is in the ROOT directory
+        const serviceAccount = require('../../serviceAccountKey.json');
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            databaseURL: config.firebase.databaseURL
+        });
+        console.log('Firebase Admin Initialized (using service account key)');
+    } catch (error) {
+        console.error('Firebase Admin Initialization failed using service account key:', error);
+        console.error('Ensure serviceAccountKey.json exists in the project root and the path is correct.');
+        process.exit(1); // Exit if Firebase initialization fails
+    }
+} else {
+    console.log('Firebase Admin already initialized (firebase.js)');
+}
 
-const db = admin.database();
+const db = admin.database(); // Use Admin SDK database
 
 /**
- * Get aircraft information from Firebase
+ * Get aircraft information from Firebase using Admin SDK
  * @param {string} category - Optional aircraft category (light, midsize, heavy)
  * @param {string} model - Optional specific aircraft model
- * @returns {Promise<Object>} Aircraft information
+ * @returns {Promise<Object|null>} Aircraft information or null
  */
 async function getAircraftInfo(category = null, model = null) {
   try {
+    let dataRef;
     if (model) {
-      const modelRef = ref(database, `aircraft/specific_models/${model}`);
-      const snapshot = await get(modelRef);
-      return snapshot.exists() ? snapshot.val() : null;
+      dataRef = db.ref(`aircraft/specific_models/${model}`);
     } else if (category) {
-      const categoryRef = ref(database, `aircraft/categories/${category}`);
-      const snapshot = await get(categoryRef);
-      return snapshot.exists() ? snapshot.val() : null;
+      dataRef = db.ref(`aircraft/categories/${category}`);
     } else {
-      const aircraftRef = ref(database, 'aircraft');
-      const snapshot = await get(aircraftRef);
-      return snapshot.exists() ? snapshot.val() : null;
+      dataRef = db.ref('aircraft');
     }
+    const snapshot = await dataRef.once('value');
+    return snapshot.val(); // .val() returns null if path doesn't exist
   } catch (error) {
     console.error('Error fetching aircraft info:', error);
     return null;
@@ -50,37 +59,32 @@ async function getAircraftInfo(category = null, model = null) {
 }
 
 /**
- * Get route information from Firebase
+ * Get route information from Firebase using Admin SDK
  * @param {string} origin - Origin city/airport
  * @param {string} destination - Destination city/airport
- * @returns {Promise<Object>} Route information
+ * @returns {Promise<Object|null>} Route information or null
  */
 async function getRouteInfo(origin = null, destination = null) {
   try {
+    let dataRef;
     if (origin && destination) {
-      // Normalize city names for lookup
       const normalizedOrigin = origin.toLowerCase().replace(/\s+/g, '_');
       const normalizedDestination = destination.toLowerCase().replace(/\s+/g, '_');
       const routeKey = `${normalizedOrigin}_${normalizedDestination}`;
-      
-      const routeRef = ref(database, `routes/popular_routes/${routeKey}`);
-      const snapshot = await get(routeRef);
-      
+      dataRef = db.ref(`routes/popular_routes/${routeKey}`);
+      const snapshot = await dataRef.once('value');
       if (snapshot.exists()) {
         return snapshot.val();
       }
-      
-      // Try reverse route if direct route not found
+      // Try reverse route
       const reverseRouteKey = `${normalizedDestination}_${normalizedOrigin}`;
-      const reverseRouteRef = ref(database, `routes/popular_routes/${reverseRouteKey}`);
-      const reverseSnapshot = await get(reverseRouteRef);
-      
-      return reverseSnapshot.exists() ? reverseSnapshot.val() : null;
+      const reverseRouteRef = db.ref(`routes/popular_routes/${reverseRouteKey}`);
+      const reverseSnapshot = await reverseRouteRef.once('value');
+      return reverseSnapshot.val();
     } else {
-      // Get all routes
-      const routesRef = ref(database, 'routes/popular_routes');
-      const snapshot = await get(routesRef);
-      return snapshot.exists() ? snapshot.val() : null;
+      dataRef = db.ref('routes/popular_routes');
+      const snapshot = await dataRef.once('value');
+      return snapshot.val();
     }
   } catch (error) {
     console.error('Error fetching route info:', error);
@@ -166,21 +170,20 @@ const getLeadById = async (leadId) => {
 };
 
 /**
- * Get FAQ information from Firebase
+ * Get FAQ information from Firebase using Admin SDK
  * @param {string} category - Optional FAQ category
- * @returns {Promise<Object>} FAQ information
+ * @returns {Promise<Object|null>} FAQ information or null
  */
 async function getFAQ(category = null) {
   try {
+    let dataRef;
     if (category) {
-      const faqRef = ref(database, `faq/${category}`);
-      const snapshot = await get(faqRef);
-      return snapshot.exists() ? snapshot.val() : null;
+      dataRef = db.ref(`faq/${category}`);
     } else {
-      const faqRef = ref(database, 'faq');
-      const snapshot = await get(faqRef);
-      return snapshot.exists() ? snapshot.val() : null;
+      dataRef = db.ref('faq');
     }
+    const snapshot = await dataRef.once('value');
+    return snapshot.val();
   } catch (error) {
     console.error('Error fetching FAQ:', error);
     return null;
