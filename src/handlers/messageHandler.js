@@ -2,6 +2,7 @@ const { generateResponse } = require('../services/openai');
 const { getConversation } = require('../models/conversation');
 const { calculateLeadScore, shouldEscalateToAgent } = require('../utils/leadScoring');
 const { sendAgentNotification } = require('./notificationHandler');
+const { formatTelegramMarkdownV2 } = require('../utils/formatting');
 
 /**
  * Register message handler for the bot
@@ -9,6 +10,7 @@ const { sendAgentNotification } = require('./notificationHandler');
  */
 function registerMessageHandler(bot) {
   bot.on('message', async (ctx) => {
+    let responseText = '';
     try {
       // Skip non-text messages
       if (!ctx.message.text) return;
@@ -35,13 +37,18 @@ function registerMessageHandler(bot) {
       const messages = conversation.getMessagesForAI();
       
       // Generate response using OpenAI
-      const response = await generateResponse(messages, conversation);
+      responseText = await generateResponse(messages, conversation);
       
       // Add AI response to conversation
-      conversation.addMessage('assistant', response);
+      conversation.addMessage('assistant', responseText);
       
-      // Send response to user
-      await ctx.reply(response);
+      // Format the response for Telegram MarkdownV2
+      const formattedResponse = formatTelegramMarkdownV2(responseText);
+      console.log(`[MessageHandler] Sending formatted response:
+${formattedResponse}`);
+
+      // Send response to user with MarkdownV2 parse mode
+      await ctx.reply(formattedResponse, { parse_mode: 'MarkdownV2' });
       
       // Calculate lead score
       const score = calculateLeadScore(conversation);
@@ -50,7 +57,7 @@ function registerMessageHandler(bot) {
       const shouldNotify = shouldEscalateToAgent(score);
       console.log(`[MessageHandler] Lead Score: ${score}, Escalate based on score: ${shouldNotify}`);
       
-      // Check if the response indicates a handoff
+      // Check if the *original* AI response indicates a handoff
       const handoffIndicators = [
         'specialist will be in touch',
         'connect you with a specialist',
@@ -60,7 +67,7 @@ function registerMessageHandler(bot) {
       ];
       
       const responseIndicatesHandoff = handoffIndicators.some(phrase => 
-        response.toLowerCase().includes(phrase.toLowerCase())
+        responseText.toLowerCase().includes(phrase.toLowerCase())
       );
       console.log(`[MessageHandler] Response indicates handoff: ${responseIndicatesHandoff}`);
       
@@ -69,8 +76,8 @@ function registerMessageHandler(bot) {
                                  ctx.message.text.toLowerCase().includes('talk to a human') ||
                                  ctx.message.text.toLowerCase().includes('connect me with') ||
                                  ctx.message.text.toLowerCase().includes('call with specialist') ||
-                                 ctx.message.text.toLowerCase().includes('yes connect please') || // Added specific user phrase
-                                 ctx.message.text.toLowerCase().includes('pass this over to agent'); // Added specific user phrase
+                                 ctx.message.text.toLowerCase().includes('yes connect please') || 
+                                 ctx.message.text.toLowerCase().includes('pass this over to agent');
       console.log(`[MessageHandler] User requests handoff: ${userRequestsHandoff}`);
       
       // Determine overall trigger
@@ -97,8 +104,6 @@ function registerMessageHandler(bot) {
         await sendAgentNotification(ctx, conversation);
         
         // Mark notification as sent *after* successful sending
-        // Note: sendAgentNotification doesn't currently return success/failure
-        // We assume it succeeded if no error was thrown. Consider improving this.
         conversation.notificationSent = true;
         console.log('[MessageHandler] Marked notification as sent.');
 
@@ -108,7 +113,9 @@ function registerMessageHandler(bot) {
     } catch (error) {
       console.error('[MessageHandler] Error processing message:', error);
       // Ensure fallback is sent even if error happens during handoff logic
-      ctx.reply('Sorry, I encountered an error processing your message. Please try again.').catch(replyError => {
+      // Use the unformatted responseText if available, otherwise the generic fallback
+      const fallbackMessage = responseText ? formatTelegramMarkdownV2(responseText) : 'Sorry, I encountered an error processing your message. Please try again.';
+      ctx.reply(fallbackMessage, { parse_mode: 'MarkdownV2' }).catch(replyError => {
           console.error('[MessageHandler] Error sending fallback reply:', replyError);
       });
     }
