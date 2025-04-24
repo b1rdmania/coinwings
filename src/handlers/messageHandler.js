@@ -46,8 +46,9 @@ function registerMessageHandler(bot) {
       // Calculate lead score
       const score = calculateLeadScore(conversation);
       
-      // Check if we should notify an agent
+      // Check if we should notify an agent based on score
       const shouldNotify = shouldEscalateToAgent(score);
+      console.log(`[MessageHandler] Lead Score: ${score}, Escalate based on score: ${shouldNotify}`);
       
       // Check if the response indicates a handoff
       const handoffIndicators = [
@@ -61,38 +62,55 @@ function registerMessageHandler(bot) {
       const responseIndicatesHandoff = handoffIndicators.some(phrase => 
         response.toLowerCase().includes(phrase.toLowerCase())
       );
+      console.log(`[MessageHandler] Response indicates handoff: ${responseIndicatesHandoff}`);
       
       // Check if user message indicates a handoff request
       const userRequestsHandoff = ctx.message.text.toLowerCase().includes('speak to someone') || 
                                  ctx.message.text.toLowerCase().includes('talk to a human') ||
                                  ctx.message.text.toLowerCase().includes('connect me with') ||
-                                 ctx.message.text.toLowerCase().includes('call with specialist');
+                                 ctx.message.text.toLowerCase().includes('call with specialist') ||
+                                 ctx.message.text.toLowerCase().includes('yes connect please') || // Added specific user phrase
+                                 ctx.message.text.toLowerCase().includes('pass this over to agent'); // Added specific user phrase
+      console.log(`[MessageHandler] User requests handoff: ${userRequestsHandoff}`);
       
-      // Send notification if needed and not already sent
-      if ((shouldNotify || responseIndicatesHandoff || userRequestsHandoff) && !conversation.notificationSent) {
-        console.log('Sending agent notification...');
+      // Determine overall trigger
+      const handoffTriggered = shouldNotify || responseIndicatesHandoff || userRequestsHandoff || conversation.shouldNotifyAgent;
+      console.log(`[MessageHandler] Handoff triggered: ${handoffTriggered}, Notification already sent: ${conversation.notificationSent}`);
+
+      // Send notification if triggered and not already sent
+      if (handoffTriggered && !conversation.notificationSent) {
+        console.log('[MessageHandler] Preparing to send agent notification...');
         
-        // Set notification reason
-        if (responseIndicatesHandoff) {
-          conversation.notificationReason = 'AI recommended handoff';
-        } else if (userRequestsHandoff) {
-          conversation.notificationReason = 'User requested handoff';
-        } else {
-          conversation.notificationReason = 'Lead score threshold reached';
+        // Set notification reason if not already set by OpenAI function call
+        if (!conversation.notificationReason) {
+          if (responseIndicatesHandoff) {
+            conversation.notificationReason = 'AI recommended handoff';
+          } else if (userRequestsHandoff) {
+            conversation.notificationReason = 'User requested handoff';
+          } else { // must be score-based
+            conversation.notificationReason = 'Lead score threshold reached';
+          }
+          console.log(`[MessageHandler] Set notificationReason: ${conversation.notificationReason}`);
         }
-        
-        // Set flag to indicate notification should be sent
-        conversation.shouldNotifyAgent = true;
         
         // Send notification
         await sendAgentNotification(ctx, conversation);
         
-        // Mark notification as sent
+        // Mark notification as sent *after* successful sending
+        // Note: sendAgentNotification doesn't currently return success/failure
+        // We assume it succeeded if no error was thrown. Consider improving this.
         conversation.notificationSent = true;
+        console.log('[MessageHandler] Marked notification as sent.');
+
+      } else if (handoffTriggered && conversation.notificationSent) {
+        console.log('[MessageHandler] Handoff triggered, but notification was already sent.');
       }
     } catch (error) {
-      console.error('Error processing message:', error);
-      ctx.reply('Sorry, I encountered an error processing your message. Please try again.');
+      console.error('[MessageHandler] Error processing message:', error);
+      // Ensure fallback is sent even if error happens during handoff logic
+      ctx.reply('Sorry, I encountered an error processing your message. Please try again.').catch(replyError => {
+          console.error('[MessageHandler] Error sending fallback reply:', replyError);
+      });
     }
   });
 }

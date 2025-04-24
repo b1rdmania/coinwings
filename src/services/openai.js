@@ -190,20 +190,25 @@ Remember to keep your responses conversational and natural. Don't use rigid form
         
         // Check for function call
         if (responseMessage.function_call && responseMessage.function_call.name === "notify_agent") {
-          console.log('OpenAI requested to notify agent');
+          console.log('[OpenAI Service] Detected notify_agent function call.');
+          console.log('[OpenAI Service] Raw arguments:', responseMessage.function_call.arguments);
           
           try {
             // Parse the function arguments
             const functionArgs = JSON.parse(responseMessage.function_call.arguments);
+            console.log('[OpenAI Service] Parsed function arguments:', functionArgs);
             
             // Set a flag in the conversation to indicate that a notification should be sent
             if (conversation) {
               conversation.shouldNotifyAgent = true;
               conversation.notificationReason = functionArgs.reason;
-              console.log(`OpenAI requested agent notification with reason: ${functionArgs.reason}`);
+              console.log(`[OpenAI Service] Set shouldNotifyAgent=true with reason: ${functionArgs.reason}`);
+            } else {
+              console.log('[OpenAI Service] Warning: Conversation object not available to set notification flag.');
             }
           } catch (parseError) {
-            console.error('Error parsing function arguments:', parseError);
+            console.error('[OpenAI Service] Error parsing function arguments:', parseError);
+            // Optionally, you might want to prevent fallback here or handle differently
           }
         }
         

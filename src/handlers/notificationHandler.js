@@ -36,13 +36,13 @@ Reply to this user: https://t.me/user?id=${conversation.telegramId}
  * Send notification to agent channel
  * @param {Object} ctx - Telegram context
  * @param {Object} conversation - The conversation object
- * @param {string} reason - The reason for the notification
  * @returns {Promise<boolean>} - Whether the notification was sent successfully
  */
-const sendAgentNotification = async (ctx, conversation, reason) => {
+const sendAgentNotification = async (ctx, conversation) => {
+  console.log(`[NotificationHandler] Attempting to send notification for conversation ID: ${conversation.id}`);
   try {
     // Store lead data in Firebase
-    const leadId = await storeLeadData({
+    const leadDataPayload = {
       id: conversation.id,
       telegramId: conversation.telegramId,
       firstName: conversation.firstName,
@@ -56,22 +56,33 @@ const sendAgentNotification = async (ctx, conversation, reason) => {
       country: conversation.country,
       flownPrivateBefore: conversation.flownPrivateBefore,
       affiliateId: conversation.affiliateId,
-      notificationReason: reason
-    });
+      notificationReason: conversation.notificationReason // Use reason from conversation
+    };
+    console.log(`[NotificationHandler] Storing lead data:`, leadDataPayload);
+    const leadId = await storeLeadData(leadDataPayload);
+    console.log(`[NotificationHandler] Lead data stored successfully with Firebase ID: ${leadId}`);
 
     // Format the notification message
     const message = formatNotificationMessage(conversation);
 
     // Send the notification to the agent channel
     const channelId = config.telegram.agentChannel;
-    console.log(`Sending notification to channel ID: ${channelId}`);
+    console.log(`[NotificationHandler] Sending notification message to channel ID: ${channelId}`);
+    console.log(`[NotificationHandler] Message content:
+${message}`); // Log the actual message
     
     await ctx.telegram.sendMessage(channelId, message);
-    console.log('Notification sent successfully');
+    console.log('[NotificationHandler] Telegram message sent successfully.');
     
+    // Maybe return true on success?
     return true;
   } catch (error) {
-    console.error('Error sending notification:', error);
+    console.error('[NotificationHandler] Error sending notification:', error);
+    // Log specific parts of the error if helpful
+    if (error.response) {
+        console.error('[NotificationHandler] Telegram API Error Response:', error.response);
+    }
+    // Maybe return false on failure?
     return false;
   }
 };
